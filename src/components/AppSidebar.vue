@@ -1,0 +1,104 @@
+<script setup lang="ts">
+import { ref } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { useSessionsStore } from "@/stores/sessions";
+
+const router = useRouter();
+const route = useRoute();
+const sessionsStore = useSessionsStore();
+const collapsed = ref(false);
+
+const navItems = [
+  { name: "Connections", path: "/", icon: "M5 12h14M12 5l7 7-7 7" },
+  { name: "Terminal", path: "/terminal", icon: "M4 17l6-6-6-6M12 19h8" },
+  { name: "Keys", path: "/keys", icon: "M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" },
+  { name: "Snippets", path: "/snippets", icon: "M16 18l2-2-2-2M8 18l-2-2 2-2M12 2v20" },
+  { name: "History", path: "/history", icon: "M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" },
+  { name: "Files", path: "/files", icon: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" },
+  { name: "Forwards", path: "/forwards", icon: "M8 7h12m0 0l-4-4m4 4l-4 4M16 17H4m0 0l4-4m-4 4l4 4" },
+  { name: "Dashboard", path: "/dashboard", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+  { name: "Settings", path: "/settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" },
+];
+
+function isActive(path: string): boolean {
+  return route.path === path;
+}
+
+const activeSessions = () => {
+  return Object.values(sessionsStore.sessions).filter(s => s.status === 'connected').length;
+};
+</script>
+
+<template>
+  <aside
+    class="flex h-full flex-col border-r border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300"
+    :class="collapsed ? 'w-16' : 'w-56'"
+  >
+    <!-- Logo / Header -->
+    <div class="flex h-14 items-center justify-between border-b border-border/50 px-3">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8" />
+          </svg>
+        </div>
+        <span v-if="!collapsed" class="text-sm font-bold tracking-tight">DevTerm</span>
+      </div>
+      <button
+        class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-smooth hover:bg-accent hover:text-foreground"
+        @click="collapsed = !collapsed"
+      >
+        <svg class="h-3.5 w-3.5 transition-transform" :class="collapsed ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Active sessions indicator -->
+    <div v-if="activeSessions() > 0 && !collapsed" class="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-1.5">
+      <span class="status-dot status-dot-connected" />
+      <span class="text-xs font-medium text-green-600 dark:text-green-400">{{ activeSessions() }} active</span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 space-y-1 overflow-y-auto p-2 scrollbar-thin" :class="collapsed ? 'px-2' : 'px-2'">
+      <button
+        v-for="item in navItems"
+        :key="item.path"
+        class="group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-smooth"
+        :class="[
+          isActive(item.path)
+            ? 'bg-primary/10 text-primary glow-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+          collapsed ? 'justify-center px-0' : ''
+        ]"
+        :title="collapsed ? item.name : undefined"
+        @click="router.push(item.path)"
+      >
+        <!-- Active indicator bar -->
+        <div
+          v-if="isActive(item.path)"
+          class="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary"
+        />
+        
+        <svg class="h-4.5 w-4.5 shrink-0" :class="collapsed ? 'h-5 w-5' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
+        </svg>
+        <span v-if="!collapsed" class="truncate">{{ item.name }}</span>
+
+        <!-- Badge for terminal -->
+        <span
+          v-if="item.path === '/terminal' && activeSessions() > 0 && !collapsed"
+          class="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary"
+        >
+          {{ activeSessions() }}
+        </span>
+      </button>
+    </nav>
+
+    <!-- Footer -->
+    <div class="border-t border-border/50 p-3">
+      <div v-if="!collapsed" class="text-[10px] text-muted-foreground/60">v0.1.0</div>
+    </div>
+  </aside>
+</template>

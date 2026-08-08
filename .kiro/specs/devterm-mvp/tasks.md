@@ -1,0 +1,165 @@
+# Implementation Plan
+
+- [ ] 1. Project scaffolding
+  - [ ] 1.1 Scaffold Tauri + Vue 3 + TypeScript frontend
+    - Initialize Tauri v2 project with Vue 3 + TypeScript template
+    - Configure Tailwind CSS and initialize shadcn-vue (Reka UI-based)
+    - Set up Pinia and vue-router (top-level sections only, per design)
+    - Set up base folder structure: `src/components`, `src/views`, `src/stores`, `src/composables`, `src/lib`
+    - _Requirements: 11.1, 11.2_
+  - [ ] 1.2 Scaffold Go sidecar module
+    - Initialize Go module at `core/` with `cmd/devterm-core/main.go` entrypoint
+    - Create `internal/` package skeleton: `rpc`, `sshmgr`, `hostmgr`, `keymgr`, `sftpmgr`, `forwardmgr`, `historymgr`, `snippetmgr`, `monitor`, `vault`, `db`, `models`
+    - Add build script(s) producing `devterm-core-<target-triple>` binaries for the 6 supported OS/arch combinations
+    - _Requirements: 11.3_
+  - [ ] 1.3 Wire Tauri to spawn the Go sidecar
+    - Configure `externalBin` in `tauri.conf.json` pointing at `src-tauri/binaries/devterm-core`
+    - Implement Rust sidecar process manager: spawn on app start, capture stdin/stdout handles, terminate on app exit
+    - Verify a trivial round-trip (e.g. a `ping` RPC method) works in dev builds on the current OS
+    - _Requirements: 11.1, 11.3_
+
+- [ ] 2. Core IPC framework
+  - [ ] 2.1 Implement Go stdio JSON-RPC layer
+    - Implement `Content-Length`-framed reader/writer (LSP-style framing) over stdin/stdout
+    - Implement JSON-RPC 2.0 request/response/notification types and a method registry/dispatcher
+    - Add a `ping` method and startup/shutdown handling for manual verification
+    - _Requirements: 11.3_
+  - [ ] 2.2 Implement Rust IPC broker
+    - Implement `rpc_call(method, params)` Tauri command: writes framed request to sidecar stdin, correlates by generated `id`, resolves/rejects on matching stdout response
+    - Implement `rpc_cancel(id)` best-effort cancellation plumbing
+    - Implement stdout notification re-emission as Tauri event `rpc-event`
+    - Implement sidecar crash detection with one automatic restart attempt and an `INTERNAL`/backend-unavailable signal to the frontend on repeated failure
+    - _Requirements: 11.3_
+  - [ ] 2.3 Implement frontend RPC client
+    - Implement `src/lib/rpc-client.ts`: typed `call<TParams, TResult>(method, params)` over `invoke('rpc_call', ...)`, and `subscribe(method, handler)` over a single `listen('rpc-event', ...)` dispatcher keyed by `method`
+    - Add a minimal backend-availability indicator wired to the broker's unavailable signal
+    - _Requirements: 11.3_
+
+- [ ] 3. Database layer
+  - [ ] 3.1 Implement SQLite connection and migrations
+    - Add `modernc.org/sqlite` dependency and `internal/db` connection setup (WAL mode enabled)
+    - Implement migration runner and initial migration creating all tables from the design's schema (`groups`, `tags`, `ssh_keys`, `identities`, `hosts`, `host_tags`, `sessions`, `command_history`, `snippets`, `snippet_tags`, `port_forwards`, `settings`, `schema_migrations`)
+    - Add indices called out in the design (host group/favorite, history host+time, etc.)
+    - _Requirements: 11.4_
+
+- [ ] 4. Secret vault
+  - [ ] 4.1 Implement Go secret vault abstraction
+    - Define `Vault` interface (`Put`/`Get`/`Delete` by opaque ref)
+    - Implement `KeychainVault` using `zalando/go-keyring` (Windows Credential Manager / macOS Keychain / Linux Secret Service)
+    - Implement `EncryptedFileVault` fallback using AES-256-GCM, with key protection via OS primitive where available and Argon2id-derived master-passphrase fallback otherwise
+    - Implement startup selection logic (probe keychain availability, fall back on failure) and a `VAULT_UNAVAILABLE` error path
+    - _Requirements: 8.4, 10.1, 10.2_
+
+- [ ] 5. SSH key management
+  - [ ] 5.1 Implement Go key manager
+    - Implement `keys.generate` (RSA 2048/4096 and ED25519 via `golang.org/x/crypto/ssh` + `crypto/rsa`/`crypto/ed25519`), storing private key material (and passphrase if set) in the vault and metadata (type, fingerprint, comment) in `ssh_keys`
+    - Implement `keys.import` with format validation before persisting
+    - Implement `keys.list` (metadata only, no private key material returned) and `keys.delete`
+    - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+  - [ ] 5.2 Implement key management UI
+    - Implement `stores/keys.ts` Pinia store backed by the RPC client
+    - Implement `KeyManagerPanel` (list with metadata), `KeyGenerateDialog` (type + passphrase), `KeyImportDialog` (file picker + validation errors)
+    - _Requirements: 8.1, 8.2, 8.3, 8.5_
+
+- [ ] 6. Host management
+  - [ ] 6.1 Implement Go host manager and identities
+    - Implement `identities` CRUD tying auth type (password/key/agent) to vault refs / `ssh_keys`
+    - Implement `hosts.create/update/delete/list` including group and tag association (`host_tags`)
+    - Implement `hosts.search` filtering by name/hostname/tag/group
+    - Implement delete-with-active-session warning signal (return active session info so the frontend can confirm before calling delete)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+  - [ ] 6.2 Implement host management UI
+    - Implement `stores/hosts.ts` Pinia store
+    - Implement `HostList`, `HostForm` (identity selection, group, tags, favorite toggle), `HostGroupTree`, `HostSearchBar` (shadcn-vue `Command`-based fuzzy search)
+    - Implement favorite filter/view and delete confirmation flow (using the active-session warning from 6.1)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
+
+- [ ] 7. SSH connection and terminal experience
+  - [ ] 7.1 Implement Go SSH session manager
+    - Implement `ssh.connect` supporting password, key (with/without passphrase), and SSH-agent authentication, resolving identity/vault data from `hostmgr`/`vault`
+    - Implement host key verification against a local known-hosts store (TOFU: prompt-equivalent RPC error/flow on first-connect or mismatch)
+    - Implement PTY allocation, `ssh.write`, `ssh.resize`, `ssh.disconnect`, and `terminal.data` notifications (with short-timer output coalescing per design)
+    - Implement connection status notifications (connecting/connected/disconnected/error) and clear `AUTH_FAILED`/`CONN_UNREACHABLE`/`CONN_LOST` error mapping
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
+  - [ ] 7.2 Implement sessions store and terminal rendering
+    - Implement `stores/sessions.ts`: tracks open sessions, tabs, split panes, and per-session connection status
+    - Implement `composables/useTerminal.ts` wrapping `@xterm/xterm` + `@xterm/addon-fit` + `@xterm/addon-search`, feeding from/to the sessions store
+    - Implement `TerminalTabs` and `SplitPane` components; closing a tab/pane calls `ssh.disconnect` for its session
+    - _Requirements: 1.8, 3.1, 3.2, 3.6, 3.7_
+  - [ ] 7.3 Implement terminal search, themes, and font settings
+    - Implement in-terminal search UI using `@xterm/addon-search` with match highlighting/navigation
+    - Implement `stores/settings.ts` for theme and font family/size, persisted via a `settings.*` RPC to the `settings` table, applied immediately to open terminals
+    - _Requirements: 3.3, 3.4, 3.5_
+
+- [ ] 8. Command history
+  - [ ] 8.1 Implement Go history manager
+    - Implement `history.record` (called per submitted command per session/host) writing to `command_history`
+    - Implement `history.search` with substring filtering and pagination/limit support
+    - _Requirements: 4.1, 4.2, 4.4_
+  - [ ] 8.2 Implement command history UI
+    - Implement `stores/history.ts` and `HistoryPanel` with live-filtering search input
+    - Wire terminal command submission to `history.record`; wire history entry selection to insert text into the active terminal input
+    - _Requirements: 4.1, 4.2, 4.3, 4.4_
+
+- [ ] 9. Command snippets
+  - [ ] 9.1 Implement Go snippet manager
+    - Implement `snippets.create/update/delete/list` with title, command text, and tags
+    - Implement snippet filtering by title/tag/content
+    - _Requirements: 5.1, 5.2, 5.4_
+  - [ ] 9.2 Implement snippet UI
+    - Implement `stores/snippets.ts` and `SnippetPanel` (create/edit/delete, filter input)
+    - Wire "run snippet" to insert/execute against the active terminal session
+    - _Requirements: 5.1, 5.2, 5.3, 5.4_
+
+- [ ] 10. SFTP file transfer
+  - [ ] 10.1 Implement Go SFTP manager
+    - Implement `sftp.list` (remote directory listing) using `pkg/sftp` over the active SSH connection
+    - Implement `sftp.upload`/`sftp.download` returning a `transferId` immediately, streaming in fixed-size chunks, emitting `sftp.progress`/`sftp.complete` notifications, and honoring `rpc_cancel`
+    - Implement `sftp.rename`/`sftp.delete` with `SFTP_ERROR` mapping for permission/not-found/disk-full cases
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.6_
+  - [ ] 10.2 Implement file browser UI
+    - Implement dual-pane `FileBrowser` (local + remote listing) with navigation
+    - Implement upload/download with progress bars driven by `sftp.progress` notifications
+    - Implement rename/delete actions and drag-and-drop between local and remote panes
+    - Implement failed/interrupted transfer state display (Req 6.6)
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+
+- [ ] 11. Port forwarding
+  - [ ] 11.1 Implement Go port forward manager
+    - Implement `forward.start` for local, remote, and dynamic (SOCKS) forwarding types bound to a live SSH connection, persisting rules in `port_forwards`
+    - Implement `forward.stop`/`forward.list`, and automatic teardown of all forwards tied to a session on `ssh.disconnect`/`CONN_LOST`
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+  - [ ] 11.2 Implement port forwarding UI
+    - Implement `stores/forwards.ts`, `ForwardRuleList` (status + stop action), `ForwardRuleForm` (type-specific fields)
+    - Reflect forwards stopping automatically when their session disconnects
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+
+- [ ] 12. Dashboard and monitoring
+  - [ ] 12.1 Implement Go monitor manager
+    - Implement remote OS family detection on connect
+    - Implement Linux metrics collection (`/proc/stat`, `/proc/meminfo`, `df -P`, `/proc/net/dev`, `/proc/uptime`) and macOS metrics collection (`top -l 1`, `vm_stat`, `df -P`, `uptime`), parsed into a common `Metrics` struct
+    - Implement `monitor.start`/`monitor.stop` with configurable poll interval (default 3s) and `monitor.tick` notifications; partial-metrics/`unavailable` flag handling when a command fails
+    - Wire automatic stop on session disconnect
+    - _Requirements: 9.1, 9.2, 9.3_
+  - [ ] 12.2 Implement dashboard UI
+    - Implement `stores` wiring for live metrics per session and `MetricsPanel` with CPU/memory/disk/network/uptime cards and live charts (Apache ECharts)
+    - Implement degraded-state display for unavailable metric fields
+    - _Requirements: 9.1, 9.2, 9.3_
+
+- [ ] 13. Cross-cutting error handling
+  - [ ] 13.1 Implement consistent error taxonomy end-to-end
+    - Ensure all Go managers return errors using the `{code, message, data?}` shape from the design (`AUTH_FAILED`, `CONN_UNREACHABLE`, `CONN_LOST`, `VAULT_UNAVAILABLE`, `SFTP_ERROR`, `VALIDATION`, `INTERNAL`)
+    - Implement frontend error handling in `rpc-client.ts` consumers: inline field errors for `VALIDATION`, toasts for `CONN_UNREACHABLE`/`INTERNAL`, status badges for `CONN_LOST`, blocking dialog for `VAULT_UNAVAILABLE`
+    - Implement the persistent "backend unavailable" banner for repeated sidecar crashes (from task 2.2)
+    - _Requirements: 1.7, 1.8, 6.6, 9.3_
+
+- [ ] 14. Security and offline verification pass
+  - [ ] 14.1 Verify security and offline properties
+    - Verify (via code review/tests) that no password/passphrase/private-key value is ever written to SQLite in plaintext
+    - Verify no analytics/telemetry network calls exist in either the Rust or Go binary
+    - Verify host CRUD, key CRUD, snippet CRUD, and history search all function with no network connectivity
+    - _Requirements: 10.1, 10.2, 10.3, 10.4_
+  - [ ] 14.2 Verify cross-platform sidecar builds
+    - Build the Go sidecar for all 6 target triples (win/mac/linux × x64/arm64) and confirm Tauri's bundler picks up the correctly named binary for each
+    - Smoke-test the packaged app launching and completing a basic connect flow on at least the current development OS
+    - _Requirements: 11.1, 11.3_
