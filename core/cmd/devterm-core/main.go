@@ -39,7 +39,7 @@ func main() {
 	}
 
 	// Initialize managers
-	hostMgr := hostmgr.New(database)
+	hostMgr := hostmgr.New(database, v)
 	keyMgr := keymgr.New(database, v)
 	sshMgr := sshmgr.New(database, v, hostMgr)
 	sftpMgr := sftpmgr.New(sshMgr)

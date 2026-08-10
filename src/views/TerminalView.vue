@@ -1,20 +1,46 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useSessionsStore } from "@/stores/sessions";
 import TerminalTabs from "@/components/terminal/TerminalTabs.vue";
 import TerminalPane from "@/components/terminal/TerminalPane.vue";
+import SplitContainer from "@/components/terminal/SplitContainer.vue";
 
 const sessionsStore = useSessionsStore();
+
+const activeSplit = computed(() => {
+  if (!sessionsStore.activeTabId) return null;
+  return sessionsStore.splits[sessionsStore.activeTabId] ?? null;
+});
 </script>
 
 <template>
   <TerminalTabs>
     <template v-if="sessionsStore.activeSession">
-      <!-- Connected: show terminal -->
-      <TerminalPane
-        v-if="sessionsStore.activeSession.status === 'connected'"
-        :session-id="sessionsStore.activeSession.id"
-        :key="sessionsStore.activeSession.id"
-      />
+      <!-- Connected: show terminal (possibly split) -->
+      <template v-if="sessionsStore.activeSession.status === 'connected'">
+        <!-- Split view -->
+        <SplitContainer v-if="activeSplit" :direction="activeSplit.direction">
+          <template #first>
+            <TerminalPane
+              :session-id="sessionsStore.activeSession.id"
+              :key="'split-1-' + sessionsStore.activeSession.id"
+            />
+          </template>
+          <template #second>
+            <TerminalPane
+              :session-id="activeSplit.sessionId"
+              :key="'split-2-' + activeSplit.sessionId"
+            />
+          </template>
+        </SplitContainer>
+
+        <!-- Single pane -->
+        <TerminalPane
+          v-else
+          :session-id="sessionsStore.activeSession.id"
+          :key="sessionsStore.activeSession.id"
+        />
+      </template>
 
       <!-- Connecting -->
       <div v-else-if="sessionsStore.activeSession.status === 'connecting'" class="flex h-full items-center justify-center bg-[#0d1117]">

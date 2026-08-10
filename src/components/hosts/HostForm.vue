@@ -111,13 +111,11 @@ async function submit() {
       finalIdentityId = identResult.id;
 
     } else if (authMethod.value === "password" && passwordValue.value) {
-      // Store password in vault and create identity
-      const vaultRef = crypto.randomUUID();
-      // The backend handles vault storage via the identity creation
+      // Create identity with password — backend stores in vault
       const identResult = await rpcClient.call<object, { id: string }>("identities.create", {
         name: name.value + " (password)",
         authType: "password",
-        vaultRef: vaultRef,
+        password: passwordValue.value,
       });
       finalIdentityId = identResult.id;
 

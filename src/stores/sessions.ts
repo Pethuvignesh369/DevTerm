@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { rpcClient } from "@/lib/rpc-client";
+import { useNotificationsStore } from "@/stores/notifications";
 
 export type ConnectionStatus =
   | "disconnected"
@@ -27,6 +28,8 @@ export const useSessionsStore = defineStore("sessions", () => {
   const sessions = ref<Record<string, Session>>({});
   const tabs = ref<Tab[]>([]);
   const activeTabId = ref<string | null>(null);
+  // Split pane state per tab: null = no split, otherwise holds the second session ID
+  const splits = ref<Record<string, { sessionId: string; direction: "horizontal" | "vertical" }>>({});
 
   const activeSession = computed(() => {
     if (!activeTabId.value) return null;
@@ -76,9 +79,23 @@ export const useSessionsStore = defineStore("sessions", () => {
       session.status = "connected";
       sessions.value[result.sessionId] = session;
       tab.sessionId = result.sessionId;
+
+      const notifications = useNotificationsStore();
+      notifications.add({
+        type: "success",
+        title: "Connected",
+        message: `Successfully connected to ${hostName}`,
+      });
     } catch (e) {
       session.status = "error";
       session.error = e instanceof Error ? e.message : String(e);
+
+      const notifications = useNotificationsStore();
+      notifications.add({
+        type: "error",
+        title: "Connection Failed",
+        message: session.error,
+      });
     }
   }
 
@@ -105,14 +122,25 @@ export const useSessionsStore = defineStore("sessions", () => {
     activeTabId.value = tabId;
   }
 
+  function splitTab(tabId: string, direction: "horizontal" | "vertical", newSessionId: string) {
+    splits.value[tabId] = { sessionId: newSessionId, direction };
+  }
+
+  function unsplitTab(tabId: string) {
+    delete splits.value[tabId];
+  }
+
   return {
     sessions,
     tabs,
     activeTabId,
     activeSession,
+    splits,
     connect,
     disconnect,
     closeTab,
     setActiveTab,
+    splitTab,
+    unsplitTab,
   };
 });

@@ -24,20 +24,22 @@ type Session struct {
 
 // Manager manages SSH connections and sessions.
 type Manager struct {
-	db       *sql.DB
-	vault    vault.Vault
-	hostMgr  *hostmgr.Manager
-	mu       sync.RWMutex
-	sessions map[string]*Session
+	db         *sql.DB
+	vault      vault.Vault
+	hostMgr    *hostmgr.Manager
+	knownHosts *KnownHostsDB
+	mu         sync.RWMutex
+	sessions   map[string]*Session
 }
 
 // New creates a new SSH manager.
 func New(db *sql.DB, v vault.Vault, hostMgr *hostmgr.Manager) *Manager {
 	return &Manager{
-		db:       db,
-		vault:    v,
-		hostMgr:  hostMgr,
-		sessions: make(map[string]*Session),
+		db:         db,
+		vault:      v,
+		hostMgr:    hostMgr,
+		knownHosts: NewKnownHostsDB(db),
+		sessions:   make(map[string]*Session),
 	}
 }
 
@@ -47,6 +49,8 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 	d.Register("ssh.disconnect", m.disconnect)
 	d.Register("ssh.write", m.write)
 	d.Register("ssh.resize", m.resize)
+	d.Register("ssh.knownHosts.list", m.listKnownHosts)
+	d.Register("ssh.knownHosts.remove", m.removeKnownHost)
 }
 
 // GetSession returns an active session by ID (used by other managers).
@@ -83,7 +87,7 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 	// Build SSH config
 	config := &ssh.ClientConfig{
 		User:            host.Username,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: implement known-hosts TOFU
+		HostKeyCallback: m.knownHosts.HostKeyCallback(),
 	}
 
 	// Resolve auth method from identity
@@ -290,6 +294,27 @@ func (m *Manager) resize(params map[string]interface{}) (interface{}, error) {
 	err := sess.SSHSession.WindowChange(int(rows), int(cols))
 	if err != nil {
 		return nil, fmt.Errorf("resize failed: %w", err)
+	}
+	return map[string]interface{}{"ok": true}, nil
+}
+
+
+func (m *Manager) listKnownHosts(params map[string]interface{}) (interface{}, error) {
+	return m.knownHosts.ListHosts()
+}
+
+func (m *Manager) removeKnownHost(params map[string]interface{}) (interface{}, error) {
+	hostname, _ := params["hostname"].(string)
+	port, _ := params["port"].(string)
+	if hostname == "" {
+		return nil, fmt.Errorf("hostname is required")
+	}
+	if port == "" {
+		port = "22"
+	}
+	err := m.knownHosts.RemoveHost(hostname, port)
+	if err != nil {
+		return nil, err
 	}
 	return map[string]interface{}{"ok": true}, nil
 }

@@ -11,12 +11,19 @@ import (
 
 // Manager handles host and identity CRUD.
 type Manager struct {
-	db *sql.DB
+	db    *sql.DB
+	vault interface {
+		Put(ref string, secret []byte) error
+	}
 }
 
 // New creates a new host manager.
-func New(db *sql.DB) *Manager {
-	return &Manager{db: db}
+func New(db *sql.DB, vault ...interface{ Put(ref string, secret []byte) error }) *Manager {
+	m := &Manager{db: db}
+	if len(vault) > 0 {
+		m.vault = vault[0]
+	}
+	return m
 }
 
 // RegisterRPC registers all host management RPC methods.
@@ -239,6 +246,15 @@ func (m *Manager) createIdentity(params map[string]interface{}) (interface{}, er
 	authType, _ := params["authType"].(string)
 	sshKeyID, _ := params["sshKeyId"].(string)
 	vaultRef, _ := params["vaultRef"].(string)
+	password, _ := params["password"].(string)
+
+	// If password auth, store the password in vault
+	if authType == "password" && password != "" && m.vault != nil {
+		vaultRef = uuid.New().String()
+		if err := m.vault.Put(vaultRef, []byte(password)); err != nil {
+			return nil, fmt.Errorf("failed to store password: %w", err)
+		}
+	}
 
 	var sshKeyIDPtr, vaultRefPtr *string
 	if sshKeyID != "" {
