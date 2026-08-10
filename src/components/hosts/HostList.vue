@@ -3,6 +3,7 @@ import { onMounted, onActivated, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
+import { useRecentsStore } from "@/stores/recents";
 import { rpcClient } from "@/lib/rpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import HostEditDialog from "./HostEditDialog.vue";
 
 const hostsStore = useHostsStore();
 const sessionsStore = useSessionsStore();
+const recentsStore = useRecentsStore();
 const router = useRouter();
 const showForm = ref(false);
 const showFavorites = ref(false);
@@ -157,8 +159,24 @@ async function importSSHConfig() {
       <Button v-if="quickHost" size="sm" @click="quickConnect">Connect</Button>
     </div>
 
+    <!-- Recent connections -->
+    <div v-if="recentsStore.recents.length > 0" class="px-6 pb-3">
+      <p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Recent</p>
+      <div class="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
+        <button
+          v-for="recent in recentsStore.recents.slice(0, 5)"
+          :key="recent.hostId"
+          class="shrink-0 flex items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs transition-smooth hover:border-primary/30 hover:bg-accent press-effect"
+          @click="connect(recent.hostId)"
+        >
+          <span class="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+          <span class="font-medium">{{ recent.hostName }}</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Search and filters -->
-    <div class="flex items-center gap-3 px-6 pb-4">
+    <div class="flex items-center gap-3 px-6 pb-4">>
       <div class="relative flex-1 max-w-sm">
         <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -219,7 +237,9 @@ async function importSSHConfig() {
         <div
           v-for="host in displayedHosts()"
           :key="host.id"
-          class="group animate-fade-in rounded-xl border border-border bg-card p-4 hover-lift"
+          class="group rounded-xl border bg-card p-4 hover-lift transition-all duration-200"
+          :class="connectingHostId === host.id ? 'border-primary/50 ring-2 ring-primary/20 animate-pulse' : 'border-border'"
+          @dblclick="connect(host.id)"
         >
           <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">

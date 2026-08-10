@@ -1,17 +1,18 @@
 /**
- * Composable for managing an xterm.js terminal instance tied to a session.
- * Features: themes, copy/paste, search, resize debounce, batched writes, reactivation fit.
+ * Composable for managing an xterm.js terminal instance.
+ * Features: themes, copy/paste, search, resize, bell, links, zoom, bracket paste, batched writes.
  */
 import { ref, onMounted, onActivated, onBeforeUnmount, watch, type Ref } from "vue";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { rpcClient } from "@/lib/rpc-client";
 import { terminalThemes, defaultThemeName } from "@/lib/terminal-themes";
 import { useSettingsStore } from "@/stores/settings";
+import { playNotificationSound } from "@/lib/sounds";
 
-// Dynamic scrollback: cap at this to prevent memory issues
 const MAX_SCROLLBACK = 5000;
 
 export function useTerminal(
@@ -44,8 +45,13 @@ export function useTerminal(
 
     const fit = new FitAddon();
     const search = new SearchAddon();
+    const webLinks = new WebLinksAddon((_, uri) => {
+      window.open(uri, "_blank");
+    });
+
     term.loadAddon(fit);
     term.loadAddon(search);
+    term.loadAddon(webLinks);
     term.open(containerRef.value);
     fit.fit();
 
@@ -53,23 +59,21 @@ export function useTerminal(
     fitAddon.value = fit;
     searchAddon.value = search;
 
-    // Send user keystrokes to the backend
+    // Bell sound
+    term.onBell(() => {
+      playNotificationSound();
+    });
+
+    // Send keystrokes
     term.onData((data) => {
-      rpcClient.call("ssh.write", {
-        sessionId: sessionId.value,
-        data,
-      });
+      rpcClient.call("ssh.write", { sessionId: sessionId.value, data });
     });
 
-    // Handle binary data
     term.onBinary((data) => {
-      rpcClient.call("ssh.write", {
-        sessionId: sessionId.value,
-        data,
-      });
+      rpcClient.call("ssh.write", { sessionId: sessionId.value, data });
     });
 
-    // Receive terminal output (batched for performance)
+    // Batched writes (16ms = 60fps)
     let writeBuf = "";
     let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -89,7 +93,7 @@ export function useTerminal(
       }
     });
 
-    // Detect unexpected disconnects
+    // Disconnect detection
     unsubDisconnect = rpcClient.subscribe("ssh.status", (params: unknown) => {
       const p = params as { sessionId: string; status: string };
       if (p.sessionId === sessionId.value && p.status === "disconnected") {
@@ -98,7 +102,7 @@ export function useTerminal(
       }
     });
 
-    // Handle resize with debounce
+    // Debounced resize
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     resizeObserver = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -118,53 +122,36 @@ export function useTerminal(
       e.preventDefault();
       try {
         const text = await navigator.clipboard.readText();
-        if (text) {
-          rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
-        }
-      } catch {
-        // Clipboard denied
-      }
+        if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
+      } catch { /* denied */ }
     });
   });
 
-  // Fix #1: Re-fit terminal when KeepAlive reactivates this component
+  // Re-fit on KeepAlive reactivation
   onActivated(() => {
-    if (fitAddon.value && terminal.value) {
-      // Small delay to let the DOM layout settle
-      setTimeout(() => {
-        fitAddon.value?.fit();
-      }, 20);
+    if (fitAddon.value) {
+      setTimeout(() => fitAddon.value?.fit(), 20);
     }
   });
 
-  // Live theme update (#5)
-  watch(
-    () => settingsStore.settings.terminalTheme,
-    (themeName) => {
-      if (!terminal.value) return;
-      const name = themeName || defaultThemeName;
-      const themeConfig = terminalThemes[name] || terminalThemes[defaultThemeName];
-      terminal.value.options.theme = themeConfig.theme;
-    }
-  );
+  // Live theme updates
+  watch(() => settingsStore.settings.terminalTheme, (name) => {
+    if (!terminal.value) return;
+    const t = terminalThemes[name || defaultThemeName] || terminalThemes[defaultThemeName];
+    terminal.value.options.theme = t.theme;
+  });
 
-  watch(
-    () => settingsStore.settings.fontSize,
-    (size) => {
-      if (!terminal.value) return;
-      terminal.value.options.fontSize = size;
-      fitAddon.value?.fit();
-    }
-  );
+  watch(() => settingsStore.settings.fontSize, (size) => {
+    if (!terminal.value) return;
+    terminal.value.options.fontSize = size;
+    fitAddon.value?.fit();
+  });
 
-  watch(
-    () => settingsStore.settings.fontFamily,
-    (family) => {
-      if (!terminal.value) return;
-      terminal.value.options.fontFamily = family;
-      fitAddon.value?.fit();
-    }
-  );
+  watch(() => settingsStore.settings.fontFamily, (family) => {
+    if (!terminal.value) return;
+    terminal.value.options.fontFamily = family;
+    fitAddon.value?.fit();
+  });
 
   onBeforeUnmount(() => {
     unsubscribe?.();
@@ -173,33 +160,44 @@ export function useTerminal(
     terminal.value?.dispose();
   });
 
-  function searchText(query: string) {
-    searchAddon.value?.findNext(query);
-  }
-
-  function searchPrevious(query: string) {
-    searchAddon.value?.findPrevious(query);
-  }
+  function searchText(query: string) { searchAddon.value?.findNext(query); }
+  function searchPrevious(query: string) { searchAddon.value?.findPrevious(query); }
 
   function copySelection() {
-    if (!terminal.value) return;
-    const selection = terminal.value.getSelection();
-    if (selection) {
-      navigator.clipboard.writeText(selection);
-    }
+    const sel = terminal.value?.getSelection();
+    if (sel) navigator.clipboard.writeText(sel);
   }
 
   function paste() {
     navigator.clipboard.readText().then((text) => {
-      if (text) {
-        rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
-      }
+      if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
     });
   }
 
-  function clear() {
-    terminal.value?.clear();
+  function clear() { terminal.value?.clear(); }
+
+  function zoomIn() {
+    if (!terminal.value) return;
+    const size = Math.min((terminal.value.options.fontSize || 14) + 1, 32);
+    terminal.value.options.fontSize = size;
+    settingsStore.saveSettings({ fontSize: size });
+    fitAddon.value?.fit();
   }
 
-  return { terminal, fitAddon, searchText, searchPrevious, copySelection, paste, clear };
+  function zoomOut() {
+    if (!terminal.value) return;
+    const size = Math.max((terminal.value.options.fontSize || 14) - 1, 8);
+    terminal.value.options.fontSize = size;
+    settingsStore.saveSettings({ fontSize: size });
+    fitAddon.value?.fit();
+  }
+
+  function zoomReset() {
+    if (!terminal.value) return;
+    terminal.value.options.fontSize = 14;
+    settingsStore.saveSettings({ fontSize: 14 });
+    fitAddon.value?.fit();
+  }
+
+  return { terminal, fitAddon, searchText, searchPrevious, copySelection, paste, clear, zoomIn, zoomOut, zoomReset };
 }

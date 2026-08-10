@@ -3,10 +3,13 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
+import { useSnippetsStore } from "@/stores/snippets";
+import { rpcClient } from "@/lib/rpc-client";
 
 const router = useRouter();
 const hostsStore = useHostsStore();
 const sessionsStore = useSessionsStore();
+const snippetsStore = useSnippetsStore();
 
 const open = ref(false);
 const query = ref("");
@@ -43,6 +46,23 @@ const allCommands = computed<CommandItem[]>(() => {
       action: async () => {
         await sessionsStore.connect(host.id, host.name);
         router.push("/terminal");
+      },
+    });
+  }
+
+  // Add snippets
+  for (const snippet of snippetsStore.snippets.slice(0, 10)) {
+    commands.push({
+      id: `snippet-${snippet.id}`,
+      label: `Run: ${snippet.title}`,
+      description: snippet.command.slice(0, 60),
+      icon: "M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4",
+      action: () => {
+        const session = sessionsStore.activeSession;
+        if (session?.status === "connected") {
+          rpcClient.call("ssh.write", { sessionId: session.id, data: snippet.command + "\n" });
+          router.push("/terminal");
+        }
       },
     });
   }

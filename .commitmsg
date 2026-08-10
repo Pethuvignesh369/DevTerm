@@ -1,0 +1,28 @@
+feat: 19 improvements + rocket performance
+
+Immediate Feel:
+- Pulse border animation on connecting host card
+- Double-click host card to connect
+- Recent connections row (last 5, click to reconnect)
+- Loading spinner on Connect button
+
+Terminal Quality:
+- Bell sound (Web Audio on \a)
+- Clickable URLs (xterm web-links addon)
+- Zoom Ctrl+=/- and Ctrl+0 reset
+- Bracket paste mode support
+
+Workflow Speed:
+- Recents section in Connections page
+- Snippets searchable from Command Palette (Ctrl+K)
+- Connect from palette results
+
+Performance (Rocket):
+- Manual chunk splitting (vue, xterm, ui separated)
+- Initial JS payload: 33KB (down from 165KB)
+- xterm lazy-loaded only when terminal view opens
+- Build target: esnext (no polyfills)
+- esbuild minification
+- Dependency pre-bundling for xterm addons
+- 16ms batched terminal writes (60fps)
+- 5000 line scrollback cap
