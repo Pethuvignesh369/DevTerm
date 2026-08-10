@@ -149,3 +149,75 @@
     @apply bg-muted-foreground/30;
   }
 }
+
+
+/* Staggered list animation */
+@layer utilities {
+  .stagger-fade-in > * {
+    animation: staggerFade 0.3s ease both;
+  }
+  .stagger-fade-in > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger-fade-in > *:nth-child(2) { animation-delay: 30ms; }
+  .stagger-fade-in > *:nth-child(3) { animation-delay: 60ms; }
+  .stagger-fade-in > *:nth-child(4) { animation-delay: 90ms; }
+  .stagger-fade-in > *:nth-child(5) { animation-delay: 120ms; }
+  .stagger-fade-in > *:nth-child(6) { animation-delay: 150ms; }
+  .stagger-fade-in > *:nth-child(7) { animation-delay: 180ms; }
+  .stagger-fade-in > *:nth-child(8) { animation-delay: 210ms; }
+  .stagger-fade-in > *:nth-child(9) { animation-delay: 240ms; }
+  .stagger-fade-in > *:nth-child(10) { animation-delay: 270ms; }
+  .stagger-fade-in > *:nth-child(n+11) { animation-delay: 300ms; }
+
+  @keyframes staggerFade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Hover lift for cards */
+  .hover-lift {
+    @apply transition-all duration-200 ease-out;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgb(0 0 0 / 0.15), 0 4px 10px -3px rgb(0 0 0 / 0.1);
+  }
+
+  /* Pulse ring for active connections */
+  .pulse-ring {
+    position: relative;
+  }
+  .pulse-ring::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0;
+    animation: pulseRing 2s ease-out infinite;
+  }
+  @keyframes pulseRing {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  /* Smooth number counter */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Button press effect */
+  .press-effect:active {
+    transform: scale(0.95);
+  }
+
+  /* Skeleton shimmer */
+  .shimmer {
+    background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--accent)) 50%, hsl(var(--muted)) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}

@@ -6,6 +6,7 @@ import StatusBar from "./components/StatusBar.vue";
 import NotificationToast from "./components/NotificationToast.vue";
 import LockScreen from "./components/LockScreen.vue";
 import CommandPalette from "./components/CommandPalette.vue";
+import OnboardingWizard from "./components/OnboardingWizard.vue";
 import { useSettingsStore } from "./stores/settings";
 import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
 
@@ -35,4 +36,5 @@ onMounted(() => {
   <NotificationToast />
   <LockScreen />
   <CommandPalette />
+  <OnboardingWizard />
 </template>

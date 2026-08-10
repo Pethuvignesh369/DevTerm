@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { rpcClient } from "@/lib/rpc-client";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useRecentsStore } from "@/stores/recents";
+import { playConnectSound, playDisconnectSound, playErrorSound } from "@/lib/sounds";
 
 export type ConnectionStatus =
   | "disconnected"
@@ -46,6 +47,15 @@ export const useSessionsStore = defineStore("sessions", () => {
     if (session) {
       session.status = p.status;
       if (p.error) session.error = p.error;
+      if (p.status === "disconnected") {
+        playDisconnectSound();
+        const notifications = useNotificationsStore();
+        notifications.add({
+          type: "warning",
+          title: "Disconnected",
+          message: `${session.hostName} connection lost`,
+        });
+      }
     }
   });
 
@@ -88,6 +98,7 @@ export const useSessionsStore = defineStore("sessions", () => {
         title: "Connected",
         message: `Successfully connected to ${hostName}`,
       });
+      playConnectSound();
       recentsStore.addRecent({ hostId, hostName, hostname: hostName, username: "", port: 22 });
     } catch (e) {
       session.status = "error";
@@ -99,6 +110,7 @@ export const useSessionsStore = defineStore("sessions", () => {
         title: "Connection Failed",
         message: session.error,
       });
+      playErrorSound();
     }
   }
 

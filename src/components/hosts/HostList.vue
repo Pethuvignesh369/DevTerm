@@ -209,11 +209,11 @@ async function importSSHConfig() {
 
     <!-- Host grid -->
     <div v-else class="flex-1 overflow-auto px-6 pb-6 scrollbar-thin">
-      <div class="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+      <div class="grid gap-3 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 stagger-fade-in">
         <div
           v-for="host in displayedHosts()"
           :key="host.id"
-          class="group animate-fade-in rounded-xl border border-border bg-card p-4 card-hover"
+          class="group animate-fade-in rounded-xl border border-border bg-card p-4 hover-lift"
         >
           <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">
