@@ -65,11 +65,23 @@ export function useTerminal(
       });
     });
 
-    // Receive terminal output from the backend
+    // Receive terminal output from the backend (batched for performance)
+    let writeBuf = "";
+    let writeTimer: ReturnType<typeof setTimeout> | null = null;
+
     unsubscribe = rpcClient.subscribe("terminal.data", (params: unknown) => {
       const p = params as { sessionId: string; chunk: string };
       if (p.sessionId === sessionId.value) {
-        term.write(p.chunk);
+        writeBuf += p.chunk;
+        if (!writeTimer) {
+          writeTimer = setTimeout(() => {
+            if (writeBuf) {
+              term.write(writeBuf);
+              writeBuf = "";
+            }
+            writeTimer = null;
+          }, 16); // ~60fps batch
+        }
       }
     });
 

@@ -2,6 +2,7 @@
 import { useSettingsStore } from "@/stores/settings";
 import { useAppLockStore } from "@/stores/applock";
 import { Input } from "@/components/ui/input";
+import { terminalThemes, themeNames } from "@/lib/terminal-themes";
 
 const settingsStore = useSettingsStore();
 const lockStore = useAppLockStore();
@@ -88,6 +89,46 @@ function setFontFamily(event: Event) {
       </section>
 
       <!-- Monitor -->
+      <section class="animate-fade-in rounded-xl border border-border bg-card p-5">
+        <h3 class="font-semibold">Terminal Theme</h3>
+        <p class="mt-0.5 text-xs text-muted-foreground">Choose a color scheme for the terminal.</p>
+        <div class="mt-4 grid grid-cols-2 gap-2">
+          <button
+            v-for="name in themeNames"
+            :key="name"
+            class="flex items-center gap-2 rounded-lg border-2 p-2.5 transition-smooth text-left"
+            :class="settingsStore.settings.terminalTheme === name ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'"
+            @click="settingsStore.saveSettings({ terminalTheme: name })"
+          >
+            <div
+              class="h-6 w-6 rounded"
+              :style="{ backgroundColor: terminalThemes[name].theme.background }"
+            />
+            <span class="text-xs font-medium">{{ terminalThemes[name].name }}</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Connection -->
+      <section class="animate-fade-in rounded-xl border border-border bg-card p-5">
+        <h3 class="font-semibold">Connection</h3>
+        <p class="mt-0.5 text-xs text-muted-foreground">SSH connection behavior.</p>
+        <div class="mt-4">
+          <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Connection Timeout</label>
+          <select
+            :value="settingsStore.settings.connectionTimeout"
+            class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition-smooth focus:border-primary focus:ring-1 focus:ring-primary/50 outline-none"
+            @change="settingsStore.saveSettings({ connectionTimeout: parseInt(($event.target as HTMLSelectElement).value) })"
+          >
+            <option :value="10000">10 seconds</option>
+            <option :value="30000">30 seconds (default)</option>
+            <option :value="60000">60 seconds</option>
+            <option :value="120000">2 minutes</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Monitoring -->
       <section class="animate-fade-in rounded-xl border border-border bg-card p-5">
         <h3 class="font-semibold">Monitoring</h3>
         <p class="mt-0.5 text-xs text-muted-foreground">Configure dashboard refresh intervals.</p>

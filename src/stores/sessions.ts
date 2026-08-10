@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { rpcClient } from "@/lib/rpc-client";
 import { useNotificationsStore } from "@/stores/notifications";
+import { useRecentsStore } from "@/stores/recents";
 
 export type ConnectionStatus =
   | "disconnected"
@@ -81,11 +82,13 @@ export const useSessionsStore = defineStore("sessions", () => {
       tab.sessionId = result.sessionId;
 
       const notifications = useNotificationsStore();
+      const recentsStore = useRecentsStore();
       notifications.add({
         type: "success",
         title: "Connected",
         message: `Successfully connected to ${hostName}`,
       });
+      recentsStore.addRecent({ hostId, hostName, hostname: hostName, username: "", port: 22 });
     } catch (e) {
       session.status = "error";
       session.error = e instanceof Error ? e.message : String(e);

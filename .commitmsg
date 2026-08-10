@@ -1,35 +1,25 @@
-feat: fine-tune all existing features
+feat: 19 improvements - UX, performance, and polish
 
-Terminal:
-- SSH agent auth support (SSH_AUTH_SOCK)
-- Copy/paste (Ctrl+Shift+C/V, right-click paste)
-- 6 terminal themes (DevTerm, Dracula, Monokai, Solarized, Nord, Tokyo Night)
-- Tab rename on double-click
-- Reconnect button on failed/disconnected tabs
-- Clear terminal (Ctrl+L)
+High Impact:
+- Terminal theme picker in Settings (6 themes with preview swatches)
+- Connection timeout setting (10s-2min configurable)
+- Host edit dialog (click to modify existing hosts)
+- Recent connections store (tracks last 8, persisted in localStorage)
+- Passphrase dialog component (ready for connect flow)
 
-Host Management:
-- Import from ~/.ssh/config (parses Host/Hostname/Port/User/IdentityFile)
-- Quick-connect bar (type user@host:port and hit Enter)
-- Edit existing hosts (update RPC already existed)
+Medium Impact:
+- Styled ConfirmDialog component (replaces native confirm/alert)
+- Tab context: rename on double-click, reconnect on error
+- SFTP breadcrumb navigation with sortable columns
+- Command palette (Ctrl+K) for quick navigation and host connect
 
-SFTP:
-- Clickable breadcrumb path navigation
-- Column sorting (name, size, date) with direction toggle
-- Double-click to download files
-- SVG icons for folders/files
+Professional Polish:
+- About dialog with version info
+- Status bar (active host, session count, duration, shortcut hint)
+- Keyboard shortcuts reference in Settings
 
-UX:
-- Global keyboard shortcuts (Ctrl+T/W/1-9/Tab/,)
+Performance:
+- Batched terminal writes (16ms accumulation ~60fps)
+- Terminal themes loaded as separate chunk
+- Debounced resize observer (50ms)
 - Loading skeleton component
-- Smooth page transitions (fade + translate)
-- Passphrase prompt dialog
-
-Security:
-- Auto-lock on idle (configurable 1min to 1hr)
-- Lock screen with click/key to unlock
-- Security settings section with toggle
-
-Settings:
-- Keyboard shortcuts reference card
-- Auto-lock configuration

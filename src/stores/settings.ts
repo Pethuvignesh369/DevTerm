@@ -6,17 +6,21 @@ export type ThemeMode = "light" | "dark" | "system";
 
 export interface AppSettings {
   theme: ThemeMode;
+  terminalTheme: string;
   fontFamily: string;
   fontSize: number;
   monitorPollInterval: number;
+  connectionTimeout: number;
 }
 
 export const useSettingsStore = defineStore("settings", () => {
   const settings = ref<AppSettings>({
     theme: "dark",
+    terminalTheme: "devterm",
     fontFamily: "JetBrains Mono, Fira Code, monospace",
     fontSize: 14,
     monitorPollInterval: 3000,
+    connectionTimeout: 30000,
   });
 
   // Apply theme to document
@@ -29,7 +33,6 @@ export const useSettingsStore = defineStore("settings", () => {
       } else if (theme === "light") {
         root.classList.remove("dark");
       } else {
-        // system
         if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
           root.classList.add("dark");
         } else {
@@ -44,9 +47,11 @@ export const useSettingsStore = defineStore("settings", () => {
     try {
       const result = await rpcClient.call<object, Record<string, string>>("settings.getAll", {});
       if (result.theme) settings.value.theme = result.theme as ThemeMode;
+      if (result.terminalTheme) settings.value.terminalTheme = result.terminalTheme;
       if (result.fontFamily) settings.value.fontFamily = result.fontFamily;
       if (result.fontSize) settings.value.fontSize = parseInt(result.fontSize);
       if (result.monitorPollInterval) settings.value.monitorPollInterval = parseInt(result.monitorPollInterval);
+      if (result.connectionTimeout) settings.value.connectionTimeout = parseInt(result.connectionTimeout);
     } catch {
       // Use defaults if backend not ready
     }
