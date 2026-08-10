@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
+import { rpcClient } from "@/lib/rpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import HostForm from "./HostForm.vue";
@@ -36,6 +37,57 @@ const displayedHosts = () => {
   if (showFavorites.value) return hostsStore.favoriteHosts;
   return hostsStore.filteredHosts;
 };
+
+// Quick connect
+const quickHost = ref("");
+async function quickConnect() {
+  if (!quickHost.value.trim()) return;
+  const input = quickHost.value.trim();
+  // Parse user@host:port format
+  let username = "root";
+  let hostname = input;
+  let port = 22;
+
+  if (input.includes("@")) {
+    const parts = input.split("@");
+    username = parts[0];
+    hostname = parts[1];
+  }
+  if (hostname.includes(":")) {
+    const parts = hostname.split(":");
+    hostname = parts[0];
+    port = parseInt(parts[1]) || 22;
+  }
+
+  // Create temp host and connect
+  try {
+    const result = await rpcClient.call<object, { id: string }>("hosts.create", {
+      name: hostname,
+      hostname,
+      port,
+      username,
+    });
+    await sessionsStore.connect(result.id, hostname);
+    router.push("/terminal");
+    quickHost.value = "";
+  } catch (e) {
+    hostsStore.error = e instanceof Error ? e.message : String(e);
+  }
+}
+
+async function importSSHConfig() {
+  try {
+    const result = await rpcClient.call<object, { imported: number; total: number }>("hosts.importSSHConfig", {});
+    if (result.imported > 0) {
+      await hostsStore.fetchHosts();
+      alert(`Imported ${result.imported} of ${result.total} hosts from ~/.ssh/config`);
+    } else {
+      alert(`No new hosts to import (${result.total} entries found, all already exist)`);
+    }
+  } catch (e) {
+    hostsStore.error = e instanceof Error ? e.message : String(e);
+  }
+}
 </script>
 
 <template>
@@ -46,12 +98,36 @@ const displayedHosts = () => {
         <h2 class="text-2xl font-bold tracking-tight">Connections</h2>
         <p class="mt-0.5 text-sm text-muted-foreground">Manage and connect to your SSH hosts.</p>
       </div>
-      <Button class="gap-2" @click="showForm = true">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+      <div class="flex gap-2">
+        <Button variant="outline" class="gap-2 text-xs" @click="importSSHConfig">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Import SSH Config
+        </Button>
+        <Button class="gap-2" @click="showForm = true">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Host
+        </Button>
+      </div>
+    </div>
+
+    <!-- Quick Connect -->
+    <div class="flex items-center gap-2 px-6 pb-3">
+      <div class="relative flex-1 max-w-md">
+        <svg class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
-        Add Host
-      </Button>
+        <input
+          v-model="quickHost"
+          class="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-smooth"
+          placeholder="Quick connect: user@hostname:port"
+          @keydown.enter="quickConnect"
+        />
+      </div>
+      <Button v-if="quickHost" size="sm" @click="quickConnect">Connect</Button>
     </div>
 
     <!-- Search and filters -->

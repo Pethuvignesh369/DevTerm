@@ -3,9 +3,12 @@ import { RouterView } from "vue-router";
 import { onMounted } from "vue";
 import AppSidebar from "./components/AppSidebar.vue";
 import NotificationToast from "./components/NotificationToast.vue";
+import LockScreen from "./components/LockScreen.vue";
 import { useSettingsStore } from "./stores/settings";
+import { useKeyboardShortcuts } from "./composables/useKeyboardShortcuts";
 
 const settingsStore = useSettingsStore();
+useKeyboardShortcuts();
 
 onMounted(() => {
   settingsStore.loadSettings();
@@ -26,6 +29,7 @@ onMounted(() => {
     </main>
   </div>
   <NotificationToast />
+  <LockScreen />
 </template>
 
 <style>

@@ -1,13 +1,15 @@
 /**
  * Composable for managing an xterm.js terminal instance tied to a session.
- * Wires terminal I/O to the RPC client (terminal.data notifications + ssh.write calls).
+ * Features: themes, copy/paste, search, resize debounce, reconnect.
  */
-import { ref, onMounted, onBeforeUnmount, type Ref } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, type Ref } from "vue";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import { rpcClient } from "@/lib/rpc-client";
+import { terminalThemes, defaultThemeName } from "@/lib/terminal-themes";
+import { useSettingsStore } from "@/stores/settings";
 
 export function useTerminal(
   containerRef: Ref<HTMLElement | null>,
@@ -16,19 +18,24 @@ export function useTerminal(
   const terminal = ref<Terminal | null>(null);
   const fitAddon = ref<FitAddon | null>(null);
   const searchAddon = ref<SearchAddon | null>(null);
+  const settingsStore = useSettingsStore();
   let unsubscribe: (() => void) | null = null;
+  let resizeObserver: ResizeObserver | null = null;
 
   onMounted(() => {
     if (!containerRef.value) return;
 
+    const themeName = (settingsStore.settings as { terminalTheme?: string }).terminalTheme || defaultThemeName;
+    const themeConfig = terminalThemes[themeName] || terminalThemes[defaultThemeName];
+
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
-      fontFamily: "JetBrains Mono, monospace",
-      theme: {
-        background: "#0d1117",
-        foreground: "#c9d1d9",
-      },
+      fontSize: settingsStore.settings.fontSize,
+      fontFamily: settingsStore.settings.fontFamily,
+      theme: themeConfig.theme,
+      allowProposedApi: true,
+      scrollback: 10000,
+      convertEol: true,
     });
 
     const fit = new FitAddon();
@@ -42,13 +49,16 @@ export function useTerminal(
     fitAddon.value = fit;
     searchAddon.value = search;
 
-    // Show connection info
-    term.writeln("\x1b[33m[DevTerm] Connected to session: " + sessionId.value + "\x1b[0m");
-    term.writeln("\x1b[33m[DevTerm] Waiting for remote shell output...\x1b[0m");
-    term.writeln("");
-
     // Send user keystrokes to the backend
     term.onData((data) => {
+      rpcClient.call("ssh.write", {
+        sessionId: sessionId.value,
+        data,
+      });
+    });
+
+    // Handle binary data (for copy/paste with special chars)
+    term.onBinary((data) => {
       rpcClient.call("ssh.write", {
         sessionId: sessionId.value,
         data,
@@ -65,7 +75,7 @@ export function useTerminal(
 
     // Handle resize with debounce for performance
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const observer = new ResizeObserver(() => {
+    resizeObserver = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         fit.fit();
@@ -76,11 +86,58 @@ export function useTerminal(
         });
       }, 50);
     });
-    observer.observe(containerRef.value);
+    resizeObserver.observe(containerRef.value);
+
+    // Right-click paste
+    containerRef.value.addEventListener("contextmenu", async (e) => {
+      e.preventDefault();
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          rpcClient.call("ssh.write", {
+            sessionId: sessionId.value,
+            data: text,
+          });
+        }
+      } catch {
+        // Clipboard access denied
+      }
+    });
   });
+
+  // Watch for theme changes
+  watch(
+    () => (settingsStore.settings as { terminalTheme?: string }).terminalTheme,
+    (themeName) => {
+      if (!terminal.value) return;
+      const name = themeName || defaultThemeName;
+      const themeConfig = terminalThemes[name] || terminalThemes[defaultThemeName];
+      terminal.value.options.theme = themeConfig.theme;
+    }
+  );
+
+  // Watch for font changes
+  watch(
+    () => settingsStore.settings.fontSize,
+    (size) => {
+      if (!terminal.value) return;
+      terminal.value.options.fontSize = size;
+      fitAddon.value?.fit();
+    }
+  );
+
+  watch(
+    () => settingsStore.settings.fontFamily,
+    (family) => {
+      if (!terminal.value) return;
+      terminal.value.options.fontFamily = family;
+      fitAddon.value?.fit();
+    }
+  );
 
   onBeforeUnmount(() => {
     unsubscribe?.();
+    resizeObserver?.disconnect();
     terminal.value?.dispose();
   });
 
@@ -92,5 +149,28 @@ export function useTerminal(
     searchAddon.value?.findPrevious(query);
   }
 
-  return { terminal, searchText, searchPrevious };
+  function copySelection() {
+    if (!terminal.value) return;
+    const selection = terminal.value.getSelection();
+    if (selection) {
+      navigator.clipboard.writeText(selection);
+    }
+  }
+
+  function paste() {
+    navigator.clipboard.readText().then((text) => {
+      if (text) {
+        rpcClient.call("ssh.write", {
+          sessionId: sessionId.value,
+          data: text,
+        });
+      }
+    });
+  }
+
+  function clear() {
+    terminal.value?.clear();
+  }
+
+  return { terminal, searchText, searchPrevious, copySelection, paste, clear };
 }

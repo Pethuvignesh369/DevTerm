@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useSettingsStore } from "@/stores/settings";
+import { useAppLockStore } from "@/stores/applock";
 import { Input } from "@/components/ui/input";
 
 const settingsStore = useSettingsStore();
+const lockStore = useAppLockStore();
 
 function setTheme(theme: "light" | "dark" | "system") {
   settingsStore.saveSettings({ theme });
@@ -102,6 +104,59 @@ function setFontFamily(event: Event) {
             <option :value="10000">10 seconds</option>
             <option :value="30000">30 seconds (low load)</option>
           </select>
+        </div>
+      </section>
+
+      <!-- Security -->
+      <section class="animate-fade-in rounded-xl border border-border bg-card p-5">
+        <h3 class="font-semibold">Security</h3>
+        <p class="mt-0.5 text-xs text-muted-foreground">Auto-lock and session protection.</p>
+        <div class="mt-4 space-y-4">
+          <label class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium">Auto-lock on idle</p>
+              <p class="text-xs text-muted-foreground">Lock the app after inactivity</p>
+            </div>
+            <button
+              class="relative h-6 w-11 rounded-full transition-colors"
+              :class="lockStore.enabled ? 'bg-primary' : 'bg-muted'"
+              @click="lockStore.setEnabled(!lockStore.enabled)"
+            >
+              <span
+                class="absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform"
+                :class="lockStore.enabled ? 'translate-x-5' : ''"
+              />
+            </button>
+          </label>
+          <div v-if="lockStore.enabled">
+            <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Lock after</label>
+            <select
+              :value="lockStore.lockTimeout"
+              class="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm transition-smooth focus:border-primary focus:ring-1 focus:ring-primary/50 outline-none"
+              @change="lockStore.setLockTimeout(parseInt(($event.target as HTMLSelectElement).value))"
+            >
+              <option :value="60000">1 minute</option>
+              <option :value="300000">5 minutes</option>
+              <option :value="600000">10 minutes</option>
+              <option :value="1800000">30 minutes</option>
+              <option :value="3600000">1 hour</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Keyboard Shortcuts -->
+      <section class="animate-fade-in rounded-xl border border-border bg-card p-5">
+        <h3 class="font-semibold">Keyboard Shortcuts</h3>
+        <div class="mt-3 space-y-2 text-sm">
+          <div class="flex justify-between"><span class="text-muted-foreground">New connection</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+T</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Close tab</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+W</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Switch tabs</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+1-9</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Next/Prev tab</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+Tab</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Find in terminal</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+F</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Copy selection</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+Shift+C</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Paste</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+Shift+V</kbd></div>
+          <div class="flex justify-between"><span class="text-muted-foreground">Settings</span><kbd class="rounded bg-muted px-2 py-0.5 text-xs font-mono">Ctrl+,</kbd></div>
         </div>
       </section>
     </div>

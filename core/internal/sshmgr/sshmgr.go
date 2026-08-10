@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"net"
+	"os"
 	"sync"
 
 	"github.com/devterm/core/internal/hostmgr"
@@ -11,6 +13,7 @@ import (
 	"github.com/devterm/core/internal/vault"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 // Session represents an active SSH session.
@@ -118,7 +121,15 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 					}
 				}
 			case "agent":
-				// TODO: connect to SSH agent
+				// Connect to SSH agent
+				agentSock := os.Getenv("SSH_AUTH_SOCK")
+				if agentSock != "" {
+					agentConn, agentErr := net.Dial("unix", agentSock)
+					if agentErr == nil {
+						agentClient := agent.NewClient(agentConn)
+						config.Auth = append(config.Auth, ssh.PublicKeysCallback(agentClient.Signers))
+					}
+				}
 			}
 		}
 	}

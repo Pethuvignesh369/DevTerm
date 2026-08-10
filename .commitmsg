@@ -1,0 +1,35 @@
+feat: fine-tune all existing features
+
+Terminal:
+- SSH agent auth support (SSH_AUTH_SOCK)
+- Copy/paste (Ctrl+Shift+C/V, right-click paste)
+- 6 terminal themes (DevTerm, Dracula, Monokai, Solarized, Nord, Tokyo Night)
+- Tab rename on double-click
+- Reconnect button on failed/disconnected tabs
+- Clear terminal (Ctrl+L)
+
+Host Management:
+- Import from ~/.ssh/config (parses Host/Hostname/Port/User/IdentityFile)
+- Quick-connect bar (type user@host:port and hit Enter)
+- Edit existing hosts (update RPC already existed)
+
+SFTP:
+- Clickable breadcrumb path navigation
+- Column sorting (name, size, date) with direction toggle
+- Double-click to download files
+- SVG icons for folders/files
+
+UX:
+- Global keyboard shortcuts (Ctrl+T/W/1-9/Tab/,)
+- Loading skeleton component
+- Smooth page transitions (fade + translate)
+- Passphrase prompt dialog
+
+Security:
+- Auto-lock on idle (configurable 1min to 1hr)
+- Lock screen with click/key to unlock
+- Security settings section with toggle
+
+Settings:
+- Keyboard shortcuts reference card
+- Auto-lock configuration

@@ -33,6 +33,7 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 	d.Register("hosts.update", m.update)
 	d.Register("hosts.delete", m.deleteHost)
 	d.Register("hosts.search", m.search)
+	d.Register("hosts.importSSHConfig", m.importSSHConfig)
 	d.Register("identities.list", m.listIdentities)
 	d.Register("identities.create", m.createIdentity)
 	d.Register("identities.delete", m.deleteIdentity)
@@ -327,4 +328,36 @@ func (m *Manager) deleteGroup(params map[string]interface{}) (interface{}, error
 		return nil, err
 	}
 	return map[string]interface{}{"ok": true}, nil
+}
+
+
+func (m *Manager) importSSHConfig(params map[string]interface{}) (interface{}, error) {
+	entries, err := ParseSSHConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	imported := 0
+	for _, entry := range entries {
+		// Check if host already exists with same hostname
+		var exists int
+		m.db.QueryRow(`SELECT COUNT(*) FROM hosts WHERE hostname = ? AND port = ?`, entry.Hostname, entry.Port).Scan(&exists)
+		if exists > 0 {
+			continue
+		}
+
+		id := uuid.New().String()
+		_, err := m.db.Exec(
+			`INSERT INTO hosts (id, name, hostname, port, username) VALUES (?, ?, ?, ?, ?)`,
+			id, entry.Name, entry.Hostname, entry.Port, entry.Username,
+		)
+		if err == nil {
+			imported++
+		}
+	}
+
+	return map[string]interface{}{
+		"imported": imported,
+		"total":    len(entries),
+	}, nil
 }
