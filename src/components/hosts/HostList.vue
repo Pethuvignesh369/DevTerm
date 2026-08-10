@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onActivated, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
@@ -18,6 +18,11 @@ onMounted(() => {
   hostsStore.fetchHosts();
   hostsStore.fetchIdentities();
   hostsStore.fetchGroups();
+});
+
+onActivated(() => {
+  // Refresh hosts when coming back to this view
+  hostsStore.fetchHosts();
 });
 
 async function connect(hostId: string) {

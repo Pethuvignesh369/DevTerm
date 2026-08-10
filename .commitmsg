@@ -1,0 +1,8 @@
+fix: critical bug - state lost on navigation
+
+Added KeepAlive to preserve all view components across route changes.
+Terminal sessions, host lists, file browser state, and all form inputs
+now persist when switching between sidebar tabs.
+
+Root cause: Transition mode="out-in" was destroying components on every
+navigation. KeepAlive keeps them alive in memory.

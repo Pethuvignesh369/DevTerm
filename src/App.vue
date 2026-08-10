@@ -24,9 +24,9 @@ onMounted(() => {
       <AppSidebar />
       <main class="flex-1 overflow-hidden">
         <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in">
+          <KeepAlive>
             <component :is="Component" />
-          </Transition>
+          </KeepAlive>
         </RouterView>
       </main>
     </div>
@@ -36,18 +36,3 @@ onMounted(() => {
   <LockScreen />
   <CommandPalette />
 </template>
-
-<style>
-.page-enter-active,
-.page-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(4px);
-}
-.page-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-</style>
