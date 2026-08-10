@@ -6,7 +6,7 @@ import { useSessionsStore } from "@/stores/sessions";
 const router = useRouter();
 const route = useRoute();
 const sessionsStore = useSessionsStore();
-const collapsed = ref(false);
+const expanded = ref(false);
 
 const navItems = [
   { name: "Connections", path: "/", icon: "M5 12h14M12 5l7 7-7 7" },
@@ -31,74 +31,70 @@ const activeSessions = () => {
 
 <template>
   <aside
-    class="flex h-full flex-col border-r border-border/50 bg-card/50 backdrop-blur-sm transition-all duration-300"
-    :class="collapsed ? 'w-16' : 'w-56'"
+    class="flex h-full flex-col border-r border-border/50 bg-card/80 backdrop-blur-sm transition-all duration-200 ease-out"
+    :class="expanded ? 'w-48' : 'w-14'"
+    @mouseenter="expanded = true"
+    @mouseleave="expanded = false"
   >
-    <!-- Logo / Header -->
-    <div class="flex h-14 items-center justify-between border-b border-border/50 px-3">
-      <div class="flex items-center gap-2 overflow-hidden">
-        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8" />
-          </svg>
-        </div>
-        <span v-if="!collapsed" class="text-sm font-bold tracking-tight">DevTerm</span>
-      </div>
-      <button
-        class="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-smooth hover:bg-accent hover:text-foreground"
-        @click="collapsed = !collapsed"
-      >
-        <svg class="h-3.5 w-3.5 transition-transform" :class="collapsed ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    <!-- Logo -->
+    <div class="flex h-12 items-center justify-center border-b border-border/50">
+      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 17l6-6-6-6M12 19h8" />
         </svg>
-      </button>
-    </div>
-
-    <!-- Active sessions indicator -->
-    <div v-if="activeSessions() > 0 && !collapsed" class="mx-3 mt-3 flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-1.5">
-      <span class="status-dot status-dot-connected" />
-      <span class="text-xs font-medium text-green-600 dark:text-green-400">{{ activeSessions() }} active</span>
+      </div>
     </div>
 
     <!-- Navigation -->
-    <nav class="flex-1 space-y-1 overflow-y-auto p-2 scrollbar-thin" :class="collapsed ? 'px-2' : 'px-2'">
+    <nav class="flex-1 flex flex-col gap-1 py-2 px-2 overflow-y-auto scrollbar-thin">
       <button
         v-for="item in navItems"
         :key="item.path"
-        class="group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-smooth"
+        class="group relative flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-all duration-150"
         :class="[
           isActive(item.path)
-            ? 'bg-primary/10 text-primary glow-primary'
-            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-          collapsed ? 'justify-center px-0' : ''
+            ? 'bg-primary/10 text-primary'
+            : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         ]"
-        :title="collapsed ? item.name : undefined"
+        :title="!expanded ? item.name : undefined"
         @click="router.push(item.path)"
       >
-        <!-- Active indicator bar -->
+        <!-- Active indicator -->
         <div
           v-if="isActive(item.path)"
-          class="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary"
+          class="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-primary"
         />
-        
-        <svg class="h-4.5 w-4.5 shrink-0" :class="collapsed ? 'h-5 w-5' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+
+        <svg class="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
           <path stroke-linecap="round" stroke-linejoin="round" :d="item.icon" />
         </svg>
-        <span v-if="!collapsed" class="truncate">{{ item.name }}</span>
 
-        <!-- Badge for terminal -->
         <span
-          v-if="item.path === '/terminal' && activeSessions() > 0 && !collapsed"
-          class="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary"
+          v-if="expanded"
+          class="truncate text-xs whitespace-nowrap animate-fade-in"
+        >
+          {{ item.name }}
+        </span>
+
+        <!-- Session badge -->
+        <span
+          v-if="item.path === '/terminal' && activeSessions() > 0 && expanded"
+          class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 px-1 text-[9px] font-bold text-primary"
         >
           {{ activeSessions() }}
         </span>
+
+        <!-- Dot badge when collapsed -->
+        <span
+          v-if="item.path === '/terminal' && activeSessions() > 0 && !expanded"
+          class="absolute top-1 right-1 h-2 w-2 rounded-full bg-green-500"
+        />
       </button>
     </nav>
 
     <!-- Footer -->
-    <div class="border-t border-border/50 p-3">
-      <div v-if="!collapsed" class="text-[10px] text-muted-foreground/60">v0.1.0</div>
+    <div class="border-t border-border/50 p-2 flex justify-center">
+      <span v-if="expanded" class="text-[9px] text-muted-foreground/50 animate-fade-in">v0.1.0</span>
     </div>
   </aside>
 </template>
