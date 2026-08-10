@@ -34,6 +34,8 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 	d.Register("hosts.delete", m.deleteHost)
 	d.Register("hosts.search", m.search)
 	d.Register("hosts.importSSHConfig", m.importSSHConfig)
+	d.Register("hosts.export", m.exportHosts)
+	d.Register("hosts.import", m.importHosts)
 	d.Register("identities.list", m.listIdentities)
 	d.Register("identities.create", m.createIdentity)
 	d.Register("identities.delete", m.deleteIdentity)
@@ -360,4 +362,41 @@ func (m *Manager) importSSHConfig(params map[string]interface{}) (interface{}, e
 		"imported": imported,
 		"total":    len(entries),
 	}, nil
+}
+
+
+func (m *Manager) exportHosts(params map[string]interface{}) (interface{}, error) {
+	hosts, err := m.list(params)
+	if err != nil {
+		return nil, err
+	}
+	identities, err := m.listIdentities(params)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{
+		"hosts":      hosts,
+		"identities": identities,
+		"exportedAt": "now",
+	}, nil
+}
+
+func (m *Manager) importHosts(params map[string]interface{}) (interface{}, error) {
+	hostsRaw, ok := params["hosts"].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("hosts array is required")
+	}
+
+	imported := 0
+	for _, h := range hostsRaw {
+		hostMap, ok := h.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		_, err := m.create(hostMap)
+		if err == nil {
+			imported++
+		}
+	}
+	return map[string]interface{}{"imported": imported}, nil
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onActivated, watch } from "vue";
 import { useSessionsStore } from "@/stores/sessions";
 import { rpcClient } from "@/lib/rpc-client";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,28 @@ onMounted(() => {
     loadRemoteDir("/");
   }
 });
+
+// Re-load when reactivated (KeepAlive) or session changes
+onActivated(() => {
+  if (sessionsStore.activeSession?.status === "connected" && remoteEntries.value.length === 0) {
+    loadRemoteDir("/");
+  }
+});
+
+let lastSessionId = "";
+watch(
+  () => sessionsStore.activeSession?.id,
+  (newId) => {
+    if (newId && newId !== lastSessionId) {
+      lastSessionId = newId;
+      remotePath.value = "/";
+      remoteEntries.value = [];
+      if (sessionsStore.activeSession?.status === "connected") {
+        loadRemoteDir("/");
+      }
+    }
+  }
+);
 
 async function loadRemoteDir(path: string) {
   const session = sessionsStore.activeSession;

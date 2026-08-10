@@ -12,14 +12,18 @@ import (
 	"github.com/pkg/sftp"
 )
 
-// Manager handles SFTP file operations.
+// Manager handles SFTP file operations with client caching.
 type Manager struct {
-	sshMgr *sshmgr.Manager
+	sshMgr  *sshmgr.Manager
+	clients map[string]*sftp.Client // sessionID -> cached client
 }
 
 // New creates a new SFTP manager.
 func New(sshMgr *sshmgr.Manager) *Manager {
-	return &Manager{sshMgr: sshMgr}
+	return &Manager{
+		sshMgr:  sshMgr,
+		clients: make(map[string]*sftp.Client),
+	}
 }
 
 // RegisterRPC registers SFTP RPC methods.
@@ -33,11 +37,27 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 }
 
 func (m *Manager) getClient(sessionID string) (*sftp.Client, error) {
+	// Return cached client if available
+	if client, ok := m.clients[sessionID]; ok {
+		// Test if still alive
+		if _, err := client.Getwd(); err == nil {
+			return client, nil
+		}
+		// Dead client, remove from cache
+		client.Close()
+		delete(m.clients, sessionID)
+	}
+
 	sshClient, err := m.sshMgr.GetClient(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	return sftp.NewClient(sshClient)
+	client, err := sftp.NewClient(sshClient)
+	if err != nil {
+		return nil, err
+	}
+	m.clients[sessionID] = client
+	return client, nil
 }
 
 func (m *Manager) list(params map[string]interface{}) (interface{}, error) {

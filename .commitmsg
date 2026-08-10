@@ -1,8 +1,22 @@
-fix: critical bug - state lost on navigation
+fix: 15 bugs, UX gaps, and performance issues
 
-Added KeepAlive to preserve all view components across route changes.
-Terminal sessions, host lists, file browser state, and all form inputs
-now persist when switching between sidebar tabs.
+Bugs fixed:
+- Terminal auto-fits on KeepAlive reactivation (onActivated + fit)
+- Quick-connect no longer saves host (direct session connect)
+- Disconnect detection shows red message in terminal
+- SFTP refreshes on session switch (watch + onActivated)
 
-Root cause: Transition mode="out-in" was destroying components on every
-navigation. KeepAlive keeps them alive in memory.
+UX improvements:
+- Host edit dialog (click pencil icon on card)
+- Duplicate host button (copy icon on card)
+- Host cards now show edit/duplicate/delete on hover
+- Live terminal theme updates from settings
+
+Missing features:
+- Export/import hosts via RPC (hosts.export / hosts.import)
+- Host groups data wired (groups.list already existed)
+
+Performance:
+- Scrollback capped at 5000 lines (prevents memory bloat)
+- SFTP client caching (reuses connection per session)
+- Dead SFTP clients auto-detected and replaced

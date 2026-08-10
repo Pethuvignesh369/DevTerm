@@ -1,8 +1,8 @@
 /**
  * Composable for managing an xterm.js terminal instance tied to a session.
- * Features: themes, copy/paste, search, resize debounce, reconnect.
+ * Features: themes, copy/paste, search, resize debounce, batched writes, reactivation fit.
  */
-import { ref, onMounted, onBeforeUnmount, watch, type Ref } from "vue";
+import { ref, onMounted, onActivated, onBeforeUnmount, watch, type Ref } from "vue";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -10,6 +10,9 @@ import "@xterm/xterm/css/xterm.css";
 import { rpcClient } from "@/lib/rpc-client";
 import { terminalThemes, defaultThemeName } from "@/lib/terminal-themes";
 import { useSettingsStore } from "@/stores/settings";
+
+// Dynamic scrollback: cap at this to prevent memory issues
+const MAX_SCROLLBACK = 5000;
 
 export function useTerminal(
   containerRef: Ref<HTMLElement | null>,
@@ -20,12 +23,13 @@ export function useTerminal(
   const searchAddon = ref<SearchAddon | null>(null);
   const settingsStore = useSettingsStore();
   let unsubscribe: (() => void) | null = null;
+  let unsubDisconnect: (() => void) | null = null;
   let resizeObserver: ResizeObserver | null = null;
 
   onMounted(() => {
     if (!containerRef.value) return;
 
-    const themeName = (settingsStore.settings as { terminalTheme?: string }).terminalTheme || defaultThemeName;
+    const themeName = settingsStore.settings.terminalTheme || defaultThemeName;
     const themeConfig = terminalThemes[themeName] || terminalThemes[defaultThemeName];
 
     const term = new Terminal({
@@ -34,7 +38,7 @@ export function useTerminal(
       fontFamily: settingsStore.settings.fontFamily,
       theme: themeConfig.theme,
       allowProposedApi: true,
-      scrollback: 10000,
+      scrollback: MAX_SCROLLBACK,
       convertEol: true,
     });
 
@@ -57,7 +61,7 @@ export function useTerminal(
       });
     });
 
-    // Handle binary data (for copy/paste with special chars)
+    // Handle binary data
     term.onBinary((data) => {
       rpcClient.call("ssh.write", {
         sessionId: sessionId.value,
@@ -65,7 +69,7 @@ export function useTerminal(
       });
     });
 
-    // Receive terminal output from the backend (batched for performance)
+    // Receive terminal output (batched for performance)
     let writeBuf = "";
     let writeTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -80,12 +84,21 @@ export function useTerminal(
               writeBuf = "";
             }
             writeTimer = null;
-          }, 16); // ~60fps batch
+          }, 16);
         }
       }
     });
 
-    // Handle resize with debounce for performance
+    // Detect unexpected disconnects
+    unsubDisconnect = rpcClient.subscribe("ssh.status", (params: unknown) => {
+      const p = params as { sessionId: string; status: string };
+      if (p.sessionId === sessionId.value && p.status === "disconnected") {
+        term.writeln("");
+        term.writeln("\x1b[31m[DevTerm] Connection lost.\x1b[0m");
+      }
+    });
+
+    // Handle resize with debounce
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     resizeObserver = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
@@ -106,20 +119,27 @@ export function useTerminal(
       try {
         const text = await navigator.clipboard.readText();
         if (text) {
-          rpcClient.call("ssh.write", {
-            sessionId: sessionId.value,
-            data: text,
-          });
+          rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
         }
       } catch {
-        // Clipboard access denied
+        // Clipboard denied
       }
     });
   });
 
-  // Watch for theme changes
+  // Fix #1: Re-fit terminal when KeepAlive reactivates this component
+  onActivated(() => {
+    if (fitAddon.value && terminal.value) {
+      // Small delay to let the DOM layout settle
+      setTimeout(() => {
+        fitAddon.value?.fit();
+      }, 20);
+    }
+  });
+
+  // Live theme update (#5)
   watch(
-    () => (settingsStore.settings as { terminalTheme?: string }).terminalTheme,
+    () => settingsStore.settings.terminalTheme,
     (themeName) => {
       if (!terminal.value) return;
       const name = themeName || defaultThemeName;
@@ -128,7 +148,6 @@ export function useTerminal(
     }
   );
 
-  // Watch for font changes
   watch(
     () => settingsStore.settings.fontSize,
     (size) => {
@@ -149,6 +168,7 @@ export function useTerminal(
 
   onBeforeUnmount(() => {
     unsubscribe?.();
+    unsubDisconnect?.();
     resizeObserver?.disconnect();
     terminal.value?.dispose();
   });
@@ -172,10 +192,7 @@ export function useTerminal(
   function paste() {
     navigator.clipboard.readText().then((text) => {
       if (text) {
-        rpcClient.call("ssh.write", {
-          sessionId: sessionId.value,
-          data: text,
-        });
+        rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
       }
     });
   }
@@ -184,5 +201,5 @@ export function useTerminal(
     terminal.value?.clear();
   }
 
-  return { terminal, searchText, searchPrevious, copySelection, paste, clear };
+  return { terminal, fitAddon, searchText, searchPrevious, copySelection, paste, clear };
 }

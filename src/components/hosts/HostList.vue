@@ -7,12 +7,20 @@ import { rpcClient } from "@/lib/rpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import HostForm from "./HostForm.vue";
+import HostEditDialog from "./HostEditDialog.vue";
 
 const hostsStore = useHostsStore();
 const sessionsStore = useSessionsStore();
 const router = useRouter();
 const showForm = ref(false);
 const showFavorites = ref(false);
+const showEdit = ref(false);
+const editingHost = ref<typeof hostsStore.hosts[number] | null>(null);
+
+function openEdit(host: typeof hostsStore.hosts[number]) {
+  editingHost.value = host;
+  showEdit.value = true;
+}
 
 onMounted(() => {
   hostsStore.fetchHosts();
@@ -38,20 +46,35 @@ async function handleDelete(id: string, name: string) {
   }
 }
 
+async function duplicateHost(hostId: string) {
+  const host = hostsStore.hosts.find((h) => h.id === hostId);
+  if (!host) return;
+  try {
+    await hostsStore.createHost({
+      name: host.name + " (copy)",
+      hostname: host.hostname,
+      port: host.port,
+      username: host.username,
+      identityId: host.identityId || undefined,
+      favorite: false,
+    });
+  } catch (e) {
+    hostsStore.error = e instanceof Error ? e.message : String(e);
+  }
+}
+
 const displayedHosts = () => {
   if (showFavorites.value) return hostsStore.favoriteHosts;
   return hostsStore.filteredHosts;
 };
 
-// Quick connect
+// Quick connect (without saving host)
 const quickHost = ref("");
 async function quickConnect() {
   if (!quickHost.value.trim()) return;
   const input = quickHost.value.trim();
-  // Parse user@host:port format
   let username = "root";
   let hostname = input;
-  let port = 22;
 
   if (input.includes("@")) {
     const parts = input.split("@");
@@ -61,18 +84,11 @@ async function quickConnect() {
   if (hostname.includes(":")) {
     const parts = hostname.split(":");
     hostname = parts[0];
-    port = parseInt(parts[1]) || 22;
   }
 
-  // Create temp host and connect
+  // Connect directly without saving — use ssh.connect with inline params
   try {
-    const result = await rpcClient.call<object, { id: string }>("hosts.create", {
-      name: hostname,
-      hostname,
-      port,
-      username,
-    });
-    await sessionsStore.connect(result.id, hostname);
+    await sessionsStore.connect("__quick__" + Date.now(), `${username}@${hostname}`);
     router.push("/terminal");
     quickHost.value = "";
   } catch (e) {
@@ -237,10 +253,29 @@ async function importSSHConfig() {
               Connect
             </Button>
             <button
+              class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-smooth hover:bg-accent hover:text-foreground group-hover:opacity-100"
+              title="Edit"
+              @click="openEdit(host)"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-smooth hover:bg-accent hover:text-foreground group-hover:opacity-100"
+              title="Duplicate"
+              @click="duplicateHost(host.id)"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+            <button
               class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-smooth hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+              title="Delete"
               @click="handleDelete(host.id, host.name)"
             >
-              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
@@ -251,5 +286,6 @@ async function importSSHConfig() {
 
     <!-- Add Host Dialog -->
     <HostForm v-model:open="showForm" />
+    <HostEditDialog v-model:open="showEdit" :host="editingHost" />
   </div>
 </template>
