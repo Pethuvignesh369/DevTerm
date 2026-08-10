@@ -16,6 +16,7 @@ const showForm = ref(false);
 const showFavorites = ref(false);
 const showEdit = ref(false);
 const editingHost = ref<typeof hostsStore.hosts[number] | null>(null);
+const connectingHostId = ref<string | null>(null);
 
 function openEdit(host: typeof hostsStore.hosts[number]) {
   editingHost.value = host;
@@ -36,8 +37,13 @@ onActivated(() => {
 async function connect(hostId: string) {
   const host = hostsStore.hosts.find((h) => h.id === hostId);
   if (!host) return;
-  await sessionsStore.connect(hostId, host.name);
-  router.push("/terminal");
+  connectingHostId.value = hostId;
+  try {
+    await sessionsStore.connect(hostId, host.name);
+    router.push("/terminal");
+  } finally {
+    connectingHostId.value = null;
+  }
 }
 
 async function handleDelete(id: string, name: string) {
@@ -246,11 +252,15 @@ async function importSSHConfig() {
 
           <!-- Actions -->
           <div class="mt-3 flex items-center gap-2 border-t border-border/50 pt-3">
-            <Button size="sm" class="flex-1 gap-1.5 text-xs" @click="connect(host.id)">
-              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <Button size="sm" class="flex-1 gap-1.5 text-xs" :disabled="connectingHostId === host.id" @click="connect(host.id)">
+              <svg v-if="connectingHostId === host.id" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <svg v-else class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              Connect
+              {{ connectingHostId === host.id ? "Connecting..." : "Connect" }}
             </Button>
             <button
               class="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-smooth hover:bg-accent hover:text-foreground group-hover:opacity-100"
