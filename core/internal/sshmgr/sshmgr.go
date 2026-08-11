@@ -6,7 +6,9 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/devterm/core/internal/hostmgr"
 	"github.com/devterm/core/internal/rpc"
@@ -114,6 +116,14 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 						keyData, err := m.vault.Get(vaultRef)
 						if err == nil {
 							signer, err := ssh.ParsePrivateKey(keyData)
+							if err != nil && identity.SSHKeyID != nil {
+								var passphraseRef sql.NullString
+								if queryErr := m.db.QueryRow(`SELECT passphrase_vault_ref FROM ssh_keys WHERE id = ?`, *identity.SSHKeyID).Scan(&passphraseRef); queryErr == nil && passphraseRef.Valid {
+									if passphrase, vaultErr := m.vault.Get(passphraseRef.String); vaultErr == nil {
+										signer, err = ssh.ParsePrivateKeyWithPassphrase(keyData, passphrase)
+									}
+								}
+							}
 							if err == nil {
 								config.Auth = append(config.Auth, ssh.PublicKeys(signer))
 							}
@@ -134,12 +144,29 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 		}
 	}
 
-	// Connect
+	if len(config.Auth) == 0 {
+		return nil, fmt.Errorf("no usable authentication method configured for this host")
+	}
+
+	// Connect with a bounded TCP dial. SSH's Dial does not accept a timeout.
 	addr := fmt.Sprintf("%s:%d", host.Hostname, host.Port)
-	client, err := ssh.Dial("tcp", addr, config)
+	timeout := 30 * time.Second
+	var timeoutValue string
+	if err := m.db.QueryRow(`SELECT value FROM settings WHERE key = 'connectionTimeout'`).Scan(&timeoutValue); err == nil {
+		if ms, parseErr := strconv.Atoi(timeoutValue); parseErr == nil && ms > 0 {
+			timeout = time.Duration(ms) * time.Millisecond
+		}
+	}
+	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("connection failed: %w", err)
 	}
+	clientConn, channels, requests, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("connection failed: %w", err)
+	}
+	client := ssh.NewClient(clientConn, channels, requests)
 
 	sessionID := uuid.New().String()
 	sess := &Session{
@@ -308,7 +335,6 @@ func (m *Manager) resize(params map[string]interface{}) (interface{}, error) {
 	}
 	return map[string]interface{}{"ok": true}, nil
 }
-
 
 func (m *Manager) listKnownHosts(params map[string]interface{}) (interface{}, error) {
 	return m.knownHosts.ListHosts()

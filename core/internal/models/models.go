@@ -34,14 +34,15 @@ type Identity struct {
 
 // SSHKey represents stored SSH key metadata.
 type SSHKey struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	KeyType             string `json:"keyType"` // "rsa", "ed25519"
-	PublicKey           string `json:"publicKey"`
-	Fingerprint         string `json:"fingerprint"`
-	PassphraseProtected bool   `json:"passphraseProtected"`
-	VaultRef            string `json:"vaultRef"`
-	CreatedAt           string `json:"createdAt"`
+	ID                  string  `json:"id"`
+	Name                string  `json:"name"`
+	KeyType             string  `json:"keyType"` // "rsa", "ed25519"
+	PublicKey           string  `json:"publicKey"`
+	Fingerprint         string  `json:"fingerprint"`
+	PassphraseProtected bool    `json:"passphraseProtected"`
+	VaultRef            string  `json:"-"`
+	PassphraseVaultRef  *string `json:"-"`
+	CreatedAt           string  `json:"createdAt"`
 }
 
 // Snippet represents a saved command snippet.
@@ -76,13 +77,13 @@ type PortForward struct {
 
 // Metrics represents system metrics for a remote host.
 type Metrics struct {
-	CPU        *float64          `json:"cpu,omitempty"`
-	MemTotal   *uint64           `json:"memTotal,omitempty"`
-	MemUsed    *uint64           `json:"memUsed,omitempty"`
-	DiskTotal  *uint64           `json:"diskTotal,omitempty"`
-	DiskUsed   *uint64           `json:"diskUsed,omitempty"`
-	NetRxBytes *uint64           `json:"netRxBytes,omitempty"`
-	NetTxBytes *uint64           `json:"netTxBytes,omitempty"`
-	Uptime     *string           `json:"uptime,omitempty"`
-	Unavailable map[string]bool  `json:"unavailable,omitempty"`
+	CPU         *float64        `json:"cpu,omitempty"`
+	MemTotal    *uint64         `json:"memTotal,omitempty"`
+	MemUsed     *uint64         `json:"memUsed,omitempty"`
+	DiskTotal   *uint64         `json:"diskTotal,omitempty"`
+	DiskUsed    *uint64         `json:"diskUsed,omitempty"`
+	NetRxBytes  *uint64         `json:"netRxBytes,omitempty"`
+	NetTxBytes  *uint64         `json:"netTxBytes,omitempty"`
+	Uptime      *string         `json:"uptime,omitempty"`
+	Unavailable map[string]bool `json:"unavailable,omitempty"`
 }

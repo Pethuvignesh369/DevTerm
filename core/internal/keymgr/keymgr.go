@@ -36,11 +36,15 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 
 // GetKey retrieves key metadata by ID.
 func (m *Manager) GetKey(id string) (*models.SSHKey, error) {
-	row := m.db.QueryRow(`SELECT id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, created_at FROM ssh_keys WHERE id = ?`, id)
+	row := m.db.QueryRow(`SELECT id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, passphrase_vault_ref, created_at FROM ssh_keys WHERE id = ?`, id)
 	var k models.SSHKey
-	err := row.Scan(&k.ID, &k.Name, &k.KeyType, &k.PublicKey, &k.Fingerprint, &k.PassphraseProtected, &k.VaultRef, &k.CreatedAt)
+	var passphraseRef sql.NullString
+	err := row.Scan(&k.ID, &k.Name, &k.KeyType, &k.PublicKey, &k.Fingerprint, &k.PassphraseProtected, &k.VaultRef, &passphraseRef, &k.CreatedAt)
 	if err != nil {
 		return nil, err
+	}
+	if passphraseRef.Valid {
+		k.PassphraseVaultRef = &passphraseRef.String
 	}
 	return &k, nil
 }
@@ -76,7 +80,12 @@ func (m *Manager) generate(params map[string]interface{}) (interface{}, error) {
 		}
 		pubKey = signer.PublicKey()
 		// Marshal private key to PEM
-		pemBlock, err := ssh.MarshalPrivateKey(rsaKey, "")
+		var pemBlock *pem.Block
+		if passphrase != "" {
+			pemBlock, err = ssh.MarshalPrivateKeyWithPassphrase(rsaKey, "", []byte(passphrase))
+		} else {
+			pemBlock, err = ssh.MarshalPrivateKey(rsaKey, "")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("marshaling private key: %w", err)
 		}
@@ -92,7 +101,12 @@ func (m *Manager) generate(params map[string]interface{}) (interface{}, error) {
 			return nil, err
 		}
 		pubKey = signer.PublicKey()
-		pemBlock, err := ssh.MarshalPrivateKey(privKey, "")
+		var pemBlock *pem.Block
+		if passphrase != "" {
+			pemBlock, err = ssh.MarshalPrivateKeyWithPassphrase(privKey, "", []byte(passphrase))
+		} else {
+			pemBlock, err = ssh.MarshalPrivateKey(privKey, "")
+		}
 		if err != nil {
 			return nil, fmt.Errorf("marshaling private key: %w", err)
 		}
@@ -102,17 +116,18 @@ func (m *Manager) generate(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("unsupported key type: %s", keyType)
 	}
 
-	// If passphrase is set, encrypt the private key
-	if passphrase != "" {
-		// Re-parse the key to get the crypto key for passphrase encryption
-		// For simplicity, store passphrase separately in vault alongside the key
-		_ = passphrase // passphrase handling via vault
-	}
-
 	// Store in vault
 	vaultRef := uuid.New().String()
 	if err := m.vault.Put(vaultRef, privateKeyBytes); err != nil {
 		return nil, fmt.Errorf("storing key in vault: %w", err)
+	}
+	var passphraseRef *string
+	if passphrase != "" {
+		ref := uuid.New().String()
+		if err := m.vault.Put(ref, []byte(passphrase)); err != nil {
+			return nil, fmt.Errorf("storing key passphrase: %w", err)
+		}
+		passphraseRef = &ref
 	}
 
 	// Store metadata in DB
@@ -125,8 +140,8 @@ func (m *Manager) generate(params map[string]interface{}) (interface{}, error) {
 	}
 
 	_, err := m.db.Exec(
-		`INSERT INTO ssh_keys (id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, name, keyType, publicKeyStr, fingerprint, passphraseProtected, vaultRef,
+		`INSERT INTO ssh_keys (id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, passphrase_vault_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, name, keyType, publicKeyStr, fingerprint, passphraseProtected, vaultRef, passphraseRef,
 	)
 	if err != nil {
 		return nil, err
@@ -144,6 +159,7 @@ func (m *Manager) generate(params map[string]interface{}) (interface{}, error) {
 func (m *Manager) importKey(params map[string]interface{}) (interface{}, error) {
 	name, _ := params["name"].(string)
 	privateKeyPEM, _ := params["privateKey"].(string)
+	passphrase, _ := params["passphrase"].(string)
 
 	if name == "" || privateKeyPEM == "" {
 		return nil, fmt.Errorf("name and privateKey are required")
@@ -153,7 +169,6 @@ func (m *Manager) importKey(params map[string]interface{}) (interface{}, error) 
 	signer, err := ssh.ParsePrivateKey([]byte(privateKeyPEM))
 	if err != nil {
 		// Try with passphrase
-		passphrase, _ := params["passphrase"].(string)
 		if passphrase != "" {
 			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(privateKeyPEM), []byte(passphrase))
 		}
@@ -175,16 +190,24 @@ func (m *Manager) importKey(params map[string]interface{}) (interface{}, error) 
 		keyType = "ed25519"
 	}
 
-	// Store in vault
+	// Store key and, when necessary, its passphrase in separate vault entries.
 	vaultRef := uuid.New().String()
 	if err := m.vault.Put(vaultRef, []byte(privateKeyPEM)); err != nil {
 		return nil, fmt.Errorf("storing key in vault: %w", err)
 	}
 
+	var passphraseRef *string
+	if passphrase != "" {
+		ref := uuid.New().String()
+		if err := m.vault.Put(ref, []byte(passphrase)); err != nil {
+			return nil, fmt.Errorf("storing key passphrase: %w", err)
+		}
+		passphraseRef = &ref
+	}
 	id := uuid.New().String()
 	_, err = m.db.Exec(
-		`INSERT INTO ssh_keys (id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, name, keyType, publicKeyStr, fingerprint, 0, vaultRef,
+		`INSERT INTO ssh_keys (id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, passphrase_vault_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, name, keyType, publicKeyStr, fingerprint, passphrase != "", vaultRef, passphraseRef,
 	)
 	if err != nil {
 		return nil, err
@@ -200,7 +223,7 @@ func (m *Manager) importKey(params map[string]interface{}) (interface{}, error) 
 }
 
 func (m *Manager) list(params map[string]interface{}) (interface{}, error) {
-	rows, err := m.db.Query(`SELECT id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, created_at FROM ssh_keys ORDER BY name`)
+	rows, err := m.db.Query(`SELECT id, name, key_type, public_key, fingerprint, passphrase_protected, vault_ref, passphrase_vault_ref, created_at FROM ssh_keys ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -209,8 +232,12 @@ func (m *Manager) list(params map[string]interface{}) (interface{}, error) {
 	var keys []models.SSHKey
 	for rows.Next() {
 		var k models.SSHKey
-		if err := rows.Scan(&k.ID, &k.Name, &k.KeyType, &k.PublicKey, &k.Fingerprint, &k.PassphraseProtected, &k.VaultRef, &k.CreatedAt); err != nil {
+		var passphraseRef sql.NullString
+		if err := rows.Scan(&k.ID, &k.Name, &k.KeyType, &k.PublicKey, &k.Fingerprint, &k.PassphraseProtected, &k.VaultRef, &passphraseRef, &k.CreatedAt); err != nil {
 			return nil, err
+		}
+		if passphraseRef.Valid {
+			k.PassphraseVaultRef = &passphraseRef.String
 		}
 		keys = append(keys, k)
 	}
@@ -228,9 +255,13 @@ func (m *Manager) deleteKey(params map[string]interface{}) (interface{}, error) 
 
 	// Get vault ref to delete secret
 	var vaultRef string
-	err := m.db.QueryRow(`SELECT vault_ref FROM ssh_keys WHERE id = ?`, id).Scan(&vaultRef)
+	var passphraseRef sql.NullString
+	err := m.db.QueryRow(`SELECT vault_ref, passphrase_vault_ref FROM ssh_keys WHERE id = ?`, id).Scan(&vaultRef, &passphraseRef)
 	if err == nil && vaultRef != "" {
 		_ = m.vault.Delete(vaultRef)
+	}
+	if passphraseRef.Valid {
+		_ = m.vault.Delete(passphraseRef.String)
 	}
 
 	_, err = m.db.Exec(`DELETE FROM ssh_keys WHERE id = ?`, id)

@@ -24,3 +24,4 @@ Thumbs.db
 # Go
 core/vendor/
 core/devterm-core.exe
+.gocache/

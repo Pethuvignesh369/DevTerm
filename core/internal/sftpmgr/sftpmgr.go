@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/devterm/core/internal/rpc"
 	"github.com/devterm/core/internal/sshmgr"
@@ -16,6 +17,7 @@ import (
 type Manager struct {
 	sshMgr  *sshmgr.Manager
 	clients map[string]*sftp.Client // sessionID -> cached client
+	mu      sync.Mutex
 }
 
 // New creates a new SFTP manager.
@@ -37,6 +39,8 @@ func (m *Manager) RegisterRPC(d *rpc.Dispatcher) {
 }
 
 func (m *Manager) getClient(sessionID string) (*sftp.Client, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	// Return cached client if available
 	if client, ok := m.clients[sessionID]; ok {
 		// Test if still alive
@@ -74,8 +78,6 @@ func (m *Manager) list(params map[string]interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	entries, err := client.ReadDir(path)
 	if err != nil {
 		return nil, fmt.Errorf("listing directory: %w", err)
@@ -110,8 +112,6 @@ func (m *Manager) upload(params map[string]interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	transferId := uuid.New().String()
 	notifier := rpc.GetNotifier()
 
@@ -205,8 +205,6 @@ func (m *Manager) download(params map[string]interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	transferId := uuid.New().String()
 	notifier := rpc.GetNotifier()
 
@@ -306,8 +304,6 @@ func (m *Manager) rename(params map[string]interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	if err := client.Rename(oldPath, newPath); err != nil {
 		return nil, fmt.Errorf("rename failed: %w", err)
 	}
@@ -326,8 +322,6 @@ func (m *Manager) deleteFile(params map[string]interface{}) (interface{}, error)
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	if err := client.Remove(path); err != nil {
 		return nil, fmt.Errorf("delete failed: %w", err)
 	}
@@ -346,8 +340,6 @@ func (m *Manager) mkdir(params map[string]interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer client.Close()
-
 	if err := client.MkdirAll(path); err != nil {
 		return nil, fmt.Errorf("mkdir failed: %w", err)
 	}

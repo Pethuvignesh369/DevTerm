@@ -2,148 +2,108 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version" />
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform" />
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+  <img src="https://img.shields.io/badge/desktop-Tauri%202-24C8DB" alt="Tauri 2" />
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
 </p>
 
 <p align="center">
-  A modern, cross-platform SSH client built for DevOps engineers, SREs, and Platform teams.
+  A local-first desktop SSH workspace for engineers who need terminals, hosts, files, tunnels, and operational context in one place.
 </p>
 
----
+## Highlights
 
-## Features
-
-- **SSH Terminal** - Multi-tab terminal with split panes, search, themes
-- **Host Management** - Save, organize, tag, and search your servers
-- **SSH Key Management** - Generate (RSA/ED25519) and import keys securely
-- **SFTP File Browser** - Upload, download, rename, delete with progress
-- **Port Forwarding** - Local, remote, and dynamic SOCKS tunnels
-- **System Dashboard** - Real-time CPU, memory, disk, network monitoring
-- **Command Snippets** - Save and reuse frequently used commands
-- **Command History** - Searchable per-host command history
-- **Secure Vault** - AES-256-GCM encrypted secrets, OS keychain integration
-- **Zero Telemetry** - No analytics, no tracking, fully offline-capable
+- Multi-tab SSH terminal with split panes, search, link detection, clipboard actions, zoom, and configurable themes.
+- Host, identity, group, and SSH-key management—including RSA and Ed25519 generation and passphrase-protected keys.
+- SFTP browser for navigation, rename, delete, folder creation, and downloading remote files with progress events.
+- Local, remote, and SOCKS port forwarding; command snippets; searchable history; and a Linux remote-metrics dashboard.
+- Command palette and keyboard-first navigation for common actions.
+- Local SQLite persistence, trust-on-first-use host-key verification, and OS-keychain secret storage with an AES-256-GCM fallback.
+- No telemetry and no background network activity beyond the hosts you configure.
 
 ## Architecture
 
-```
-Vue 3 UI (TypeScript + Tailwind + shadcn)
-         |
-    Tauri IPC (Rust)
-         |
-  Go Sidecar (JSON-RPC over stdio)
-   ├── SSH Manager
-   ├── SFTP Manager
-   ├── Key Manager
-   ├── Host Manager
-   ├── Port Forward Manager
-   ├── Monitor Manager
-   ├── History Manager
-   ├── Snippet Manager
-   └── Secret Vault
-         |
-      SQLite (local)
+```text
+Vue 3 desktop UI (TypeScript, Pinia, Tailwind, xterm.js)
+                         │
+                  Tauri commands/events
+                         │
+              Rust JSON-RPC sidecar bridge
+                         │
+          Go service layer over stdio JSON-RPC
+    ├── SSH / SFTP / port forwarding
+    ├── hosts / keys / history / snippets / monitoring
+    ├── secure vault and known-hosts verification
+    └── SQLite database and settings
 ```
 
-## Tech Stack
+## Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Desktop | [Tauri v2](https://v2.tauri.app/) (Rust) |
-| Frontend | Vue 3, TypeScript, Tailwind CSS, Pinia |
+| --- | --- |
+| Desktop shell | Tauri v2 and Rust |
+| UI | Vue 3, TypeScript, Pinia, Tailwind CSS |
 | Terminal | xterm.js |
-| Backend | Go 1.22+ |
-| Database | SQLite (modernc.org/sqlite, pure Go) |
-| SSH | golang.org/x/crypto/ssh |
-| SFTP | pkg/sftp |
-| Security | OS Keychain + AES-256-GCM fallback |
+| Core services | Go 1.22+ |
+| Persistence | SQLite (`modernc.org/sqlite`) |
+| SSH / files | `golang.org/x/crypto/ssh`, `pkg/sftp` |
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
-- [Rust](https://rustup.rs/) (with GNU or MSVC toolchain)
-- [Go](https://go.dev/) 1.22+
-- [MSYS2](https://www.msys2.org/) (Windows, for GNU toolchain)
+- Node.js 18+
+- Go 1.22+
+- Rust toolchain compatible with Tauri
+- On Windows GNU builds, MSYS2 with `C:\msys64\mingw64\bin` on `PATH`
 
-### Setup
+### Run locally
 
 ```bash
-# Clone the repository
-git clone https://github.com/Pethuvignesh/DevTerm.git
+git clone https://github.com/Pethuvignesh369/DevTerm.git
 cd DevTerm
-
-# Install frontend dependencies
 npm install
 
-# Build the Go sidecar
+# Build the Go sidecar (Windows)
 cd core
-go mod tidy
-# Windows:
 powershell ./build.ps1
-# Or manually:
-set CGO_ENABLED=0 && go build -o ../src-tauri/binaries/devterm-core-x86_64-pc-windows-gnu.exe ./cmd/devterm-core/
 cd ..
 
-# Run in development mode
-# (Ensure C:\msys64\mingw64\bin is in PATH for Windows GNU toolchain)
 npm run tauri dev
 ```
 
-### Build for Production
+### Validate and package
 
 ```bash
-npm run tauri build
+# Frontend type-check and production bundle
+npm run build
+
+# Go compilation checks
+cd core && go test ./...
+
+# Desktop bundle
+cd .. && npm run tauri build
 ```
 
-## Project Structure
+## Project layout
 
-```
-DevTerm/
-├── src/                    # Vue 3 frontend
-│   ├── components/         # UI components
-│   ├── views/              # Page views
-│   ├── stores/             # Pinia state management
-│   ├── composables/        # Vue composables
-│   └── lib/                # Utilities (RPC client, errors)
-├── src-tauri/              # Rust Tauri shell
-│   ├── src/                # Rust source (IPC broker)
-│   └── binaries/           # Go sidecar binaries
-├── core/                   # Go sidecar
-│   ├── cmd/devterm-core/   # Entry point
-│   └── internal/           # Business logic
-│       ├── rpc/            # JSON-RPC dispatcher
-│       ├── sshmgr/         # SSH session management
-│       ├── hostmgr/        # Host CRUD
-│       ├── keymgr/         # Key generation/import
-│       ├── sftpmgr/        # SFTP operations
-│       ├── forwardmgr/     # Port forwarding
-│       ├── historymgr/     # Command history
-│       ├── snippetmgr/     # Command snippets
-│       ├── monitor/        # System metrics
-│       ├── vault/          # Secret storage
-│       ├── db/             # SQLite + migrations
-│       └── models/         # Data models
-└── .kiro/                  # Spec files
+```text
+src/                 Vue views, components, stores, and composables
+src-tauri/           Tauri shell and Go sidecar bridge
+core/cmd/            Go sidecar entry point
+core/internal/       SSH, SFTP, vault, persistence, and RPC services
 ```
 
-## Security
+## Security model
 
-- Private keys and passwords are never stored in plaintext
-- Secrets use OS keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service)
-- Fallback: AES-256-GCM encrypted file vault
-- No telemetry or analytics - zero outbound network calls except to your configured hosts
-- IPC uses stdio pipes (no local network ports opened)
+- Passwords and private keys are kept out of SQLite and stored in the OS keychain when available.
+- The fallback vault encrypts secret data with AES-256-GCM.
+- SSH host keys are trusted on first connection, then checked on subsequent connections; changed keys are rejected.
+- App settings, hosts, known hosts, history, and snippets are local-only.
 
-## Roadmap
+## Current scope
 
-- [x] v1.0 - SSH, SFTP, Host Management, Terminal, Port Forwarding
-- [ ] v2.0 - Docker, Kubernetes, Monitoring, AI Assistant
-- [ ] v3.0 - AWS, Azure, GCP, Session Recording
-- [ ] v4.0 - Plugin Marketplace, Team Collaboration
+DevTerm’s active scope is a local SSH workspace. Docker, Kubernetes, cloud integrations, session recording, and team collaboration are planned rather than currently shipped.
 
 ## License
 
-MIT
+[MIT](LICENSE)

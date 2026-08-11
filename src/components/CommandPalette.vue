@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
@@ -14,6 +14,7 @@ const snippetsStore = useSnippetsStore();
 const open = ref(false);
 const query = ref("");
 const selectedIndex = ref(0);
+const searchInput = ref<HTMLInputElement | null>(null);
 
 interface CommandItem {
   id: string;
@@ -83,8 +84,16 @@ function toggle() {
   if (open.value) {
     query.value = "";
     selectedIndex.value = 0;
+    nextTick(() => searchInput.value?.focus());
   }
 }
+
+function execute(command: CommandItem) {
+  Promise.resolve(command.action()).catch(() => undefined);
+  open.value = false;
+}
+
+watch(query, () => { selectedIndex.value = 0; });
 
 function handleKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === "k") {
@@ -105,8 +114,7 @@ function handleKeydown(event: KeyboardEvent) {
     event.preventDefault();
     const cmd = filteredCommands.value[selectedIndex.value];
     if (cmd) {
-      cmd.action();
-      open.value = false;
+      execute(cmd);
     }
   }
 }
@@ -133,6 +141,7 @@ onBeforeUnmount(() => {
             </svg>
             <input
               v-model="query"
+              ref="searchInput"
               type="text"
               placeholder="Type a command or search hosts..."
               class="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
@@ -148,7 +157,7 @@ onBeforeUnmount(() => {
               :key="cmd.id"
               class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-smooth"
               :class="selectedIndex === idx ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50'"
-              @click="cmd.action(); open = false"
+              @click="execute(cmd)"
               @mouseenter="selectedIndex = idx"
             >
               <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">

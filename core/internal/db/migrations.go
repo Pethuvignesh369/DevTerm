@@ -124,6 +124,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 `,
 	},
+	{
+		Version: 2,
+		SQL:     `ALTER TABLE ssh_keys ADD COLUMN passphrase_vault_ref TEXT;`,
+	},
 }
 
 // Migrate runs all pending migrations.

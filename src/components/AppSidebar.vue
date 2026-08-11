@@ -57,6 +57,7 @@ const activeSessions = () => {
             : 'text-muted-foreground hover:bg-accent hover:text-foreground',
         ]"
         :title="!expanded ? item.name : undefined"
+        :aria-current="isActive(item.path) ? 'page' : undefined"
         @click="router.push(item.path)"
       >
         <!-- Active indicator -->
@@ -79,6 +80,7 @@ const activeSessions = () => {
         <!-- Session badge -->
         <span
           v-if="item.path === '/terminal' && activeSessions() > 0 && expanded"
+          aria-label="Active terminal sessions"
           class="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 px-1 text-[9px] font-bold text-primary"
         >
           {{ activeSessions() }}

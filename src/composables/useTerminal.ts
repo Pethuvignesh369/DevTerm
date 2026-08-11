@@ -66,11 +66,11 @@ export function useTerminal(
 
     // Send keystrokes
     term.onData((data) => {
-      rpcClient.call("ssh.write", { sessionId: sessionId.value, data });
+      rpcClient.call("ssh.write", { sessionId: sessionId.value, data }).catch(() => undefined);
     });
 
     term.onBinary((data) => {
-      rpcClient.call("ssh.write", { sessionId: sessionId.value, data });
+      rpcClient.call("ssh.write", { sessionId: sessionId.value, data }).catch(() => undefined);
     });
 
     // Batched writes (16ms = 60fps)
@@ -112,7 +112,7 @@ export function useTerminal(
           sessionId: sessionId.value,
           cols: term.cols,
           rows: term.rows,
-        });
+        }).catch(() => undefined);
       }, 50);
     });
     resizeObserver.observe(containerRef.value);
@@ -122,7 +122,7 @@ export function useTerminal(
       e.preventDefault();
       try {
         const text = await navigator.clipboard.readText();
-        if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
+        if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text }).catch(() => undefined);
       } catch { /* denied */ }
     });
   });
@@ -170,7 +170,7 @@ export function useTerminal(
 
   function paste() {
     navigator.clipboard.readText().then((text) => {
-      if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text });
+      if (text) rpcClient.call("ssh.write", { sessionId: sessionId.value, data: text }).catch(() => undefined);
     });
   }
 

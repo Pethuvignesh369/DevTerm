@@ -26,7 +26,7 @@ const classes = computed(() =>
 </script>
 
 <template>
-  <component :is="as" :class="classes" :disabled="disabled">
+  <component :is="as" :class="classes" :disabled="disabled" :aria-disabled="disabled || undefined">
     <slot />
   </component>
 </template>

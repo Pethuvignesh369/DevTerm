@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
 import { rpcClient } from "@/lib/rpc-client";
+import { debounce } from "@/lib/debounce";
 
 export type ThemeMode = "light" | "dark" | "system";
 
@@ -57,13 +58,19 @@ export const useSettingsStore = defineStore("settings", () => {
     }
   }
 
-  async function saveSettings(partial: Partial<AppSettings>) {
+  let pendingSettings: Partial<AppSettings> = {};
+  const persistSettings = debounce(() => {
+    const changes = pendingSettings;
+    pendingSettings = {};
+    rpcClient.call("settings.set", changes).catch(() => {
+      // Settings remain applied for this session when the sidecar is unavailable.
+    });
+  }, 250);
+
+  function saveSettings(partial: Partial<AppSettings>) {
     Object.assign(settings.value, partial);
-    try {
-      await rpcClient.call("settings.set", partial);
-    } catch {
-      // Persist locally even if backend fails
-    }
+    Object.assign(pendingSettings, partial);
+    persistSettings();
   }
 
   return { settings, loadSettings, saveSettings };

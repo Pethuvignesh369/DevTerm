@@ -148,12 +148,36 @@ function handleDoubleClick(entry: FileEntry) {
   if (entry.isDir) {
     navigateInto(entry);
   } else {
-    // Trigger download (for now, notify user)
     const session = sessionsStore.activeSession;
     if (!session) return;
     const fullPath = remotePath.value === "/" ? `/${entry.name}` : `${remotePath.value}/${entry.name}`;
-    // TODO: show save dialog for local path
-    alert(`Download: ${fullPath}\nSize: ${formatSize(entry.size)}\n\n(Save dialog coming soon)`);
+    downloadEntry(fullPath, entry.name);
+  }
+}
+
+async function downloadEntry(remoteFilePath: string, filename: string) {
+  const session = sessionsStore.activeSession;
+  if (!session) return;
+  const localPath = prompt(`Save ${filename} to this full local path:`);
+  if (!localPath?.trim()) return;
+  try {
+    await rpcClient.call("sftp.download", { sessionId: session.id, remotePath: remoteFilePath, localPath: localPath.trim() });
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+async function createFolder() {
+  const session = sessionsStore.activeSession;
+  if (!session) return;
+  const name = prompt("New folder name:");
+  if (!name?.trim() || name.includes("/")) return;
+  const path = remotePath.value === "/" ? `/${name.trim()}` : `${remotePath.value}/${name.trim()}`;
+  try {
+    await rpcClient.call("sftp.mkdir", { sessionId: session.id, path });
+    await loadRemoteDir(remotePath.value);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
   }
 }
 
@@ -208,7 +232,10 @@ function formatSize(bytes: number): string {
         <h2 class="text-2xl font-bold">File Browser</h2>
         <p class="text-sm text-muted-foreground">Transfer files via SFTP.</p>
       </div>
-      <Button v-if="sessionsStore.activeSession" @click="loadRemoteDir(remotePath)">Refresh</Button>
+      <div v-if="sessionsStore.activeSession" class="flex gap-2">
+        <Button variant="outline" size="sm" @click="createFolder">New folder</Button>
+        <Button size="sm" @click="loadRemoteDir(remotePath)">Refresh</Button>
+      </div>
     </div>
 
     <!-- No session -->
@@ -301,6 +328,9 @@ function formatSize(bytes: number): string {
               <td class="px-4 py-2 text-xs text-muted-foreground">{{ entry.modTime.split('T')[0] }}</td>
               <td class="px-4 py-2">
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-smooth">
+                  <button v-if="!entry.isDir" class="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Download" @click.stop="downloadEntry(remotePath === '/' ? `/${entry.name}` : `${remotePath}/${entry.name}`, entry.name)">
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-4-4m4 4l4-4m5 4v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /></svg>
+                  </button>
                   <button class="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground" title="Rename" @click.stop="renameEntry(entry)">
                     <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

@@ -5,16 +5,17 @@ import (
 	"os"
 
 	"github.com/devterm/core/internal/db"
-	"github.com/devterm/core/internal/rpc"
-	"github.com/devterm/core/internal/vault"
-	"github.com/devterm/core/internal/hostmgr"
-	"github.com/devterm/core/internal/keymgr"
-	"github.com/devterm/core/internal/sshmgr"
-	"github.com/devterm/core/internal/sftpmgr"
 	"github.com/devterm/core/internal/forwardmgr"
 	"github.com/devterm/core/internal/historymgr"
-	"github.com/devterm/core/internal/snippetmgr"
+	"github.com/devterm/core/internal/hostmgr"
+	"github.com/devterm/core/internal/keymgr"
 	"github.com/devterm/core/internal/monitor"
+	"github.com/devterm/core/internal/rpc"
+	"github.com/devterm/core/internal/settingsmgr"
+	"github.com/devterm/core/internal/sftpmgr"
+	"github.com/devterm/core/internal/snippetmgr"
+	"github.com/devterm/core/internal/sshmgr"
+	"github.com/devterm/core/internal/vault"
 )
 
 func main() {
@@ -47,6 +48,7 @@ func main() {
 	histMgr := historymgr.New(database)
 	snippetMgr := snippetmgr.New(database)
 	monMgr := monitor.New(sshMgr)
+	settingsMgr := settingsmgr.New(database)
 
 	// Create RPC dispatcher and register methods
 	dispatcher := rpc.NewDispatcher()
@@ -60,6 +62,7 @@ func main() {
 	histMgr.RegisterRPC(dispatcher)
 	snippetMgr.RegisterRPC(dispatcher)
 	monMgr.RegisterRPC(dispatcher)
+	settingsMgr.RegisterRPC(dispatcher)
 
 	// Register built-in methods
 	dispatcher.Register("ping", func(params map[string]interface{}) (interface{}, error) {

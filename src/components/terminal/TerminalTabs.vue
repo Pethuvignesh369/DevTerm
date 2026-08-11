@@ -84,7 +84,7 @@ async function reconnect(tabId: string) {
           <!-- Reconnect button (on error/disconnected) -->
           <button
             v-if="sessionsStore.sessions[tab.sessionId]?.status === 'error' || sessionsStore.sessions[tab.sessionId]?.status === 'disconnected'"
-            class="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-smooth hover:bg-primary/20 hover:text-primary group-hover:opacity-100"
+            class="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-smooth hover:bg-primary/20 hover:text-primary group-hover:opacity-100 focus-visible:opacity-100"
             title="Reconnect"
             @click.stop="reconnect(tab.id)"
           >
@@ -95,7 +95,7 @@ async function reconnect(tabId: string) {
 
           <!-- Close button -->
           <button
-            class="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-smooth hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100"
+            class="ml-1 flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 transition-smooth hover:bg-destructive/20 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
             title="Close"
             @click.stop="sessionsStore.closeTab(tab.id)"
           >

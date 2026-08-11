@@ -18,7 +18,9 @@ type Manager struct {
 }
 
 // New creates a new host manager.
-func New(db *sql.DB, vault ...interface{ Put(ref string, secret []byte) error }) *Manager {
+func New(db *sql.DB, vault ...interface {
+	Put(ref string, secret []byte) error
+}) *Manager {
 	m := &Manager{db: db}
 	if len(vault) > 0 {
 		m.vault = vault[0]
@@ -122,6 +124,9 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 	if p, ok := params["port"].(float64); ok {
 		port = int(p)
 	}
+	if port < 1 || port > 65535 {
+		return nil, fmt.Errorf("port must be between 1 and 65535")
+	}
 	username, _ := params["username"].(string)
 	identityID, _ := params["identityId"].(string)
 	favorite := false
@@ -149,14 +154,37 @@ func (m *Manager) update(params map[string]interface{}) (interface{}, error) {
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	// Build SET clause dynamically
+	// Keep omitted fields intact while allowing every editable host field to persist.
 	name, _ := params["name"].(string)
 	hostname, _ := params["hostname"].(string)
 	username, _ := params["username"].(string)
+	port := 0
+	if raw, ok := params["port"].(float64); ok {
+		port = int(raw)
+	}
+	if port < 0 || port > 65535 {
+		return nil, fmt.Errorf("port must be between 1 and 65535")
+	}
+	var favorite interface{}
+	if value, ok := params["favorite"].(bool); ok {
+		favorite = value
+	}
+	var identityID interface{}
+	if value, ok := params["identityId"].(string); ok {
+		identityID = value
+	}
+	var groupID interface{}
+	if value, ok := params["groupId"].(float64); ok {
+		groupID = int(value)
+	}
 
 	_, err := m.db.Exec(
-		`UPDATE hosts SET name = COALESCE(NULLIF(?, ''), name), hostname = COALESCE(NULLIF(?, ''), hostname), username = COALESCE(NULLIF(?, ''), username), updated_at = datetime('now') WHERE id = ?`,
-		name, hostname, username, id,
+		`UPDATE hosts SET
+		 name = COALESCE(NULLIF(?, ''), name), hostname = COALESCE(NULLIF(?, ''), hostname),
+		 username = COALESCE(NULLIF(?, ''), username), port = CASE WHEN ? > 0 THEN ? ELSE port END,
+		 favorite = COALESCE(?, favorite), identity_id = COALESCE(NULLIF(?, ''), identity_id),
+		 group_id = COALESCE(?, group_id), updated_at = datetime('now') WHERE id = ?`,
+		name, hostname, username, port, port, favorite, identityID, groupID, id,
 	)
 	if err != nil {
 		return nil, err
@@ -332,7 +360,6 @@ func (m *Manager) deleteGroup(params map[string]interface{}) (interface{}, error
 	return map[string]interface{}{"ok": true}, nil
 }
 
-
 func (m *Manager) importSSHConfig(params map[string]interface{}) (interface{}, error) {
 	entries, err := ParseSSHConfig()
 	if err != nil {
@@ -363,7 +390,6 @@ func (m *Manager) importSSHConfig(params map[string]interface{}) (interface{}, e
 		"total":    len(entries),
 	}, nil
 }
-
 
 func (m *Manager) exportHosts(params map[string]interface{}) (interface{}, error) {
 	hosts, err := m.list(params)
