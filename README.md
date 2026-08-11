@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/version-0.1.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/desktop-Tauri%202-24C8DB" alt="Tauri 2" />
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" />
+  <img src="https://img.shields.io/badge/license-Apache--2.0-green" alt="Apache-2.0 License" />
 </p>
 
 <p align="center">
@@ -109,4 +109,4 @@ core/internal/       SSH, SFTP, vault, persistence, and RPC services
 
 ## License
 
-[MIT](LICENSE)
+[Apache-2.0](LICENSE)

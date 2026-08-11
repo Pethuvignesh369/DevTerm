@@ -9,6 +9,7 @@ import (
 	"github.com/devterm/core/internal/historymgr"
 	"github.com/devterm/core/internal/hostmgr"
 	"github.com/devterm/core/internal/keymgr"
+	"github.com/devterm/core/internal/localfiles"
 	"github.com/devterm/core/internal/monitor"
 	"github.com/devterm/core/internal/rpc"
 	"github.com/devterm/core/internal/settingsmgr"
@@ -49,6 +50,7 @@ func main() {
 	snippetMgr := snippetmgr.New(database)
 	monMgr := monitor.New(sshMgr)
 	settingsMgr := settingsmgr.New(database)
+	localFilesMgr := localfiles.New()
 
 	// Create RPC dispatcher and register methods
 	dispatcher := rpc.NewDispatcher()
@@ -63,6 +65,7 @@ func main() {
 	snippetMgr.RegisterRPC(dispatcher)
 	monMgr.RegisterRPC(dispatcher)
 	settingsMgr.RegisterRPC(dispatcher)
+	localFilesMgr.RegisterRPC(dispatcher)
 
 	// Register built-in methods
 	dispatcher.Register("ping", func(params map[string]interface{}) (interface{}, error) {

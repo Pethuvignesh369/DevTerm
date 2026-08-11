@@ -149,7 +149,7 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 	}
 
 	// Connect with a bounded TCP dial. SSH's Dial does not accept a timeout.
-	addr := fmt.Sprintf("%s:%d", host.Hostname, host.Port)
+	addr := net.JoinHostPort(host.Hostname, strconv.Itoa(host.Port))
 	timeout := 30 * time.Second
 	var timeoutValue string
 	if err := m.db.QueryRow(`SELECT value FROM settings WHERE key = 'connectionTimeout'`).Scan(&timeoutValue); err == nil {

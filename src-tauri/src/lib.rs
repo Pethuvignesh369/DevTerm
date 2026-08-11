@@ -22,7 +22,6 @@ async fn rpc_cancel(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let sidecar_state = sidecar::SidecarState::new(handle);

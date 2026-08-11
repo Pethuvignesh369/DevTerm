@@ -64,7 +64,7 @@ func (k *KnownHostsDB) HostKeyCallback() ssh.HostKeyCallback {
 			)
 			if insertErr != nil {
 				log.Printf("[known_hosts] Failed to store key for %s:%s: %v", host, port, insertErr)
-				// Don't fail the connection, just log
+				return fmt.Errorf("cannot persist host key for %s:%s: %w", host, port, insertErr)
 			} else {
 				log.Printf("[known_hosts] TOFU: trusted new key for %s:%s (%s: %s)", host, port, keyType, fingerprint)
 			}
@@ -72,9 +72,9 @@ func (k *KnownHostsDB) HostKeyCallback() ssh.HostKeyCallback {
 		}
 
 		if err != nil {
-			// DB error — allow connection but log
+			// Without reliable host-key storage, verification cannot be trusted.
 			log.Printf("[known_hosts] DB error checking %s:%s: %v", host, port, err)
-			return nil
+			return fmt.Errorf("checking stored host key for %s:%s: %w", host, port, err)
 		}
 
 		// We have a stored key — verify it matches

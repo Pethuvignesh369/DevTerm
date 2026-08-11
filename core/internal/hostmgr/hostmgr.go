@@ -128,6 +128,9 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("port must be between 1 and 65535")
 	}
 	username, _ := params["username"].(string)
+	if name == "" || hostname == "" || username == "" {
+		return nil, fmt.Errorf("name, hostname, and username are required")
+	}
 	identityID, _ := params["identityId"].(string)
 	favorite := false
 	if f, ok := params["favorite"].(bool); ok {
@@ -278,6 +281,18 @@ func (m *Manager) createIdentity(params map[string]interface{}) (interface{}, er
 	sshKeyID, _ := params["sshKeyId"].(string)
 	vaultRef, _ := params["vaultRef"].(string)
 	password, _ := params["password"].(string)
+	if name == "" {
+		return nil, fmt.Errorf("identity name is required")
+	}
+	if authType != "password" && authType != "key" && authType != "agent" {
+		return nil, fmt.Errorf("unsupported authentication type: %s", authType)
+	}
+	if authType == "password" && password == "" {
+		return nil, fmt.Errorf("password is required for password authentication")
+	}
+	if authType == "key" && sshKeyID == "" {
+		return nil, fmt.Errorf("sshKeyId is required for key authentication")
+	}
 
 	// If password auth, store the password in vault
 	if authType == "password" && password != "" && m.vault != nil {

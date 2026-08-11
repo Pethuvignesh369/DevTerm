@@ -36,7 +36,7 @@ type RpcError struct {
 
 // Notifier allows managers to push notifications to the frontend.
 type Notifier struct {
-	mu     sync.Mutex
+	mu     *sync.Mutex
 	writer io.Writer
 }
 
@@ -71,9 +71,11 @@ func (n *Notifier) Notify(method string, params interface{}) {
 // Serve runs the JSON-RPC server reading from stdin and writing to stdout.
 // It uses Content-Length framing (LSP-style).
 func Serve(stdin io.Reader, stdout io.Writer, dispatcher *Dispatcher) error {
-	globalNotifier = &Notifier{writer: stdout}
 	reader := bufio.NewReader(stdin)
 	var writeMu sync.Mutex
+	// Responses and notifications share one stream and must therefore share
+	// one lock; otherwise their Content-Length frames can interleave.
+	globalNotifier = &Notifier{writer: stdout, mu: &writeMu}
 
 	for {
 		// Read Content-Length header

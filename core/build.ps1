@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 
 $targets = @(
-    @{ GOOS = "windows"; GOARCH = "amd64"; Triple = "x86_64-pc-windows-msvc"; Ext = ".exe" },
+    @{ GOOS = "windows"; GOARCH = "amd64"; Triple = "x86_64-pc-windows-gnu"; Ext = ".exe" },
     @{ GOOS = "windows"; GOARCH = "arm64"; Triple = "aarch64-pc-windows-msvc"; Ext = ".exe" },
     @{ GOOS = "darwin";  GOARCH = "amd64"; Triple = "x86_64-apple-darwin"; Ext = "" },
     @{ GOOS = "darwin";  GOARCH = "arm64"; Triple = "aarch64-apple-darwin"; Ext = "" },

@@ -3,10 +3,6 @@
   "description": "Default capabilities for DevTerm",
   "windows": ["*"],
   "permissions": [
-    "core:default",
-    "shell:allow-execute",
-    "shell:allow-stdin-write",
-    "shell:allow-spawn",
-    "shell:allow-kill"
+    "core:default"
   ]
 }

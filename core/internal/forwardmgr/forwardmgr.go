@@ -71,8 +71,8 @@ func (m *Manager) start(params map[string]interface{}) (interface{}, error) {
 		if remoteHost == "" || remotePort == 0 {
 			return nil, fmt.Errorf("remoteHost and remotePort are required for local forwarding")
 		}
-		localAddr := fmt.Sprintf("%s:%d", localHost, int(localPort))
-		remoteAddr := fmt.Sprintf("%s:%d", remoteHost, int(remotePort))
+		localAddr := net.JoinHostPort(localHost, fmt.Sprintf("%d", int(localPort)))
+		remoteAddr := net.JoinHostPort(remoteHost, fmt.Sprintf("%d", int(remotePort)))
 
 		listener, err := net.Listen("tcp", localAddr)
 		if err != nil {
@@ -116,8 +116,8 @@ func (m *Manager) start(params map[string]interface{}) (interface{}, error) {
 		if remoteHost == "" || remotePort == 0 {
 			return nil, fmt.Errorf("remoteHost and remotePort are required for remote forwarding")
 		}
-		remoteAddr := fmt.Sprintf("%s:%d", remoteHost, int(remotePort))
-		localAddr := fmt.Sprintf("%s:%d", localHost, int(localPort))
+		remoteAddr := net.JoinHostPort(remoteHost, fmt.Sprintf("%d", int(remotePort)))
+		localAddr := net.JoinHostPort(localHost, fmt.Sprintf("%d", int(localPort)))
 
 		listener, err := client.Listen("tcp", remoteAddr)
 		if err != nil {
@@ -159,7 +159,7 @@ func (m *Manager) start(params map[string]interface{}) (interface{}, error) {
 
 	case "dynamic":
 		// SOCKS5 proxy - simplified implementation
-		localAddr := fmt.Sprintf("%s:%d", localHost, int(localPort))
+		localAddr := net.JoinHostPort(localHost, fmt.Sprintf("%d", int(localPort)))
 		listener, err := net.Listen("tcp", localAddr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to listen on %s: %w", localAddr, err)
@@ -279,7 +279,9 @@ func (m *Manager) isActive(id string) bool {
 }
 
 // handleSocks5 handles a minimal SOCKS5 connection
-func handleSocks5(conn net.Conn, sshClient interface{ Dial(string, string) (net.Conn, error) }, stopCh chan struct{}) {
+func handleSocks5(conn net.Conn, sshClient interface {
+	Dial(string, string) (net.Conn, error)
+}, stopCh chan struct{}) {
 	defer conn.Close()
 
 	// SOCKS5 handshake
