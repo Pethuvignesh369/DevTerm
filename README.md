@@ -100,9 +100,12 @@ core/internal/       SSH, SFTP, vault, persistence, and RPC services
 - SSH host keys are trusted on first connection, then checked on subsequent connections; changed keys are rejected.
 - App settings, hosts, known hosts, history, and snippets are local-only.
 
-## Current scope
+## Roadmap
 
-DevTerm’s active scope is a local SSH workspace. Docker, Kubernetes, cloud integrations, session recording, and team collaboration are planned rather than currently shipped.
+- [x] v1.0 — SSH workspace: terminal, hosts, keys, SFTP, forwarding, snippets, history, and monitoring
+- [ ] v2.0 — Docker, Kubernetes, richer monitoring, and an AI assistant
+- [ ] v3.0 — AWS, Azure, GCP, and session recording
+- [ ] v4.0 — Plugin marketplace and team collaboration
 
 ## License
 
