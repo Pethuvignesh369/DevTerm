@@ -1,7 +1,7 @@
 {
   "productName": "DevTerm",
   "version": "0.1.0",
-  "identifier": "com.devterm.app",
+  "identifier": "com.devterm.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -33,10 +33,5 @@
       "icons/icon.ico"
     ],
     "externalBin": ["binaries/devterm-core"]
-  },
-  "plugins": {
-    "shell": {
-      "open": true
-    }
   }
 }
