@@ -12,6 +12,7 @@ const name = ref("");
 const hostname = ref("");
 const port = ref(22);
 const username = ref("");
+const tags = ref("");
 const submitting = ref(false);
 const error = ref("");
 
@@ -23,6 +24,7 @@ watch(
       hostname.value = props.host.hostname;
       port.value = props.host.port;
       username.value = props.host.username;
+      tags.value = props.host.tags.join(", ");
       error.value = "";
     }
   }
@@ -38,6 +40,7 @@ async function submit() {
       hostname: hostname.value.trim(),
       port: port.value,
       username: username.value.trim(),
+      tags: tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
     });
     emit("update:open", false);
   } catch (e) {
@@ -75,6 +78,10 @@ async function submit() {
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Username</label>
             <Input v-model="username" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Tags</label>
+            <Input v-model="tags" placeholder="production, database" />
           </div>
           <div class="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" size="sm" @click="emit('update:open', false)">Cancel</Button>

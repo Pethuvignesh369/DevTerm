@@ -29,10 +29,10 @@ export const useSnippetsStore = defineStore("snippets", () => {
     }
   }
 
-  async function createSnippet(title: string, command: string) {
+  async function createSnippet(title: string, command: string, tags: string[] = []) {
     error.value = null;
     try {
-      await rpcClient.call("snippets.create", { title, command });
+      await rpcClient.call("snippets.create", { title, command, tags });
       await fetchSnippets();
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);
@@ -40,10 +40,10 @@ export const useSnippetsStore = defineStore("snippets", () => {
     }
   }
 
-  async function updateSnippet(id: string, title: string, command: string) {
+  async function updateSnippet(id: string, title: string, command: string, tags?: string[]) {
     error.value = null;
     try {
-      await rpcClient.call("snippets.update", { id, title, command });
+      await rpcClient.call("snippets.update", { id, title, command, ...(tags ? { tags } : {}) });
       await fetchSnippets();
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e);

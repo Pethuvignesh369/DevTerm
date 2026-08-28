@@ -3,6 +3,7 @@ package hostmgr
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/devterm/core/internal/models"
 	"github.com/devterm/core/internal/rpc"
@@ -64,6 +65,9 @@ func (m *Manager) GetHost(id string) (*models.Host, error) {
 		h.GroupID = &gid
 	}
 	_ = groupID // suppress unused
+	if h.Tags, err = m.loadTags(h.ID); err != nil {
+		return nil, err
+	}
 	return &h, nil
 }
 
@@ -107,7 +111,9 @@ func (m *Manager) list(params map[string]interface{}) (interface{}, error) {
 			gid := int(groupID.Int64)
 			h.GroupID = &gid
 		}
-		h.Tags = []string{} // TODO: load tags
+		if h.Tags, err = m.loadTags(h.ID); err != nil {
+			return nil, err
+		}
 		hosts = append(hosts, h)
 	}
 	if hosts == nil {
@@ -132,6 +138,7 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 		return nil, fmt.Errorf("name, hostname, and username are required")
 	}
 	identityID, _ := params["identityId"].(string)
+	tags := tagNames(params["tags"])
 	favorite := false
 	if f, ok := params["favorite"].(bool); ok {
 		favorite = f
@@ -142,11 +149,22 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 		identityIDPtr = &identityID
 	}
 
-	_, err := m.db.Exec(
+	tx, err := m.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(
 		`INSERT INTO hosts (id, name, hostname, port, username, identity_id, favorite) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		id, name, hostname, port, username, identityIDPtr, favorite,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := replaceTags(tx, "host_tags", "host_id", id, tags); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"id": id}, nil
@@ -180,8 +198,14 @@ func (m *Manager) update(params map[string]interface{}) (interface{}, error) {
 	if value, ok := params["groupId"].(float64); ok {
 		groupID = int(value)
 	}
+	tags, tagsProvided := params["tags"]
 
-	_, err := m.db.Exec(
+	tx, err := m.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	_, err = tx.Exec(
 		`UPDATE hosts SET
 		 name = COALESCE(NULLIF(?, ''), name), hostname = COALESCE(NULLIF(?, ''), hostname),
 		 username = COALESCE(NULLIF(?, ''), username), port = CASE WHEN ? > 0 THEN ? ELSE port END,
@@ -190,6 +214,14 @@ func (m *Manager) update(params map[string]interface{}) (interface{}, error) {
 		name, hostname, username, port, port, favorite, identityID, groupID, id,
 	)
 	if err != nil {
+		return nil, err
+	}
+	if tagsProvided {
+		if err := replaceTags(tx, "host_tags", "host_id", id, tagNames(tags)); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"ok": true}, nil
@@ -237,13 +269,67 @@ func (m *Manager) search(params map[string]interface{}) (interface{}, error) {
 			gid := int(groupID.Int64)
 			h.GroupID = &gid
 		}
-		h.Tags = []string{}
+		if h.Tags, err = m.loadTags(h.ID); err != nil {
+			return nil, err
+		}
 		hosts = append(hosts, h)
 	}
 	if hosts == nil {
 		hosts = []models.Host{}
 	}
 	return hosts, nil
+}
+
+func (m *Manager) loadTags(hostID string) ([]string, error) {
+	rows, err := m.db.Query(`SELECT t.name FROM tags t JOIN host_tags ht ON ht.tag_id = t.id WHERE ht.host_id = ? ORDER BY t.name`, hostID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tags := []string{}
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
+}
+
+func tagNames(raw interface{}) []string {
+	values, ok := raw.([]interface{})
+	if !ok {
+		return []string{}
+	}
+	seen, tags := make(map[string]struct{}), make([]string, 0, len(values))
+	for _, value := range values {
+		name, ok := value.(string)
+		name = strings.ToLower(strings.TrimSpace(name))
+		if !ok || name == "" {
+			continue
+		}
+		if _, exists := seen[name]; !exists {
+			seen[name] = struct{}{}
+			tags = append(tags, name)
+		}
+	}
+	return tags
+}
+
+func replaceTags(tx *sql.Tx, relation, ownerColumn, ownerID string, tags []string) error {
+	if _, err := tx.Exec(`DELETE FROM `+relation+` WHERE `+ownerColumn+` = ?`, ownerID); err != nil {
+		return err
+	}
+	for _, tag := range tags {
+		if _, err := tx.Exec(`INSERT INTO tags (name) VALUES (?) ON CONFLICT(name) DO NOTHING`, tag); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO `+relation+` (`+ownerColumn+`, tag_id) SELECT ?, id FROM tags WHERE name = ?`, ownerID, tag); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Manager) listIdentities(params map[string]interface{}) (interface{}, error) {

@@ -9,6 +9,7 @@ const searchQuery = ref("");
 const showCreate = ref(false);
 const newTitle = ref("");
 const newCommand = ref("");
+const newTags = ref("");
 const createError = ref("");
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -30,10 +31,11 @@ async function handleCreate() {
   }
   createError.value = "";
   try {
-    await snippetsStore.createSnippet(newTitle.value.trim(), newCommand.value.trim());
+    await snippetsStore.createSnippet(newTitle.value.trim(), newCommand.value.trim(), newTags.value.split(",").map((tag) => tag.trim()).filter(Boolean));
     showCreate.value = false;
     newTitle.value = "";
     newCommand.value = "";
+    newTags.value = "";
   } catch (e) {
     createError.value = e instanceof Error ? e.message : String(e);
   }
@@ -76,6 +78,7 @@ const emit = defineEmits<{
           class="w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           rows="3"
         />
+        <Input v-model="newTags" placeholder="Tags: deployment, diagnostics" />
         <Button size="sm" @click="handleCreate">Save Snippet</Button>
       </div>
     </div>

@@ -39,6 +39,7 @@ export interface CreateHostParams {
   identityId?: string;
   groupId?: number;
   favorite?: boolean;
+  tags?: string[];
 }
 
 export const useHostsStore = defineStore("hosts", () => {

@@ -65,6 +65,7 @@ async function duplicateHost(hostId: string) {
       username: host.username,
       identityId: host.identityId || undefined,
       favorite: false,
+      tags: host.tags,
     });
   } catch (e) {
     hostsStore.error = e instanceof Error ? e.message : String(e);

@@ -18,6 +18,7 @@ const port = ref(22);
 const username = ref("root");
 const identityId = ref("");
 const favorite = ref(false);
+const tags = ref("");
 const submitting = ref(false);
 const error = ref("");
 
@@ -39,6 +40,7 @@ watch(
       username.value = "root";
       identityId.value = "";
       favorite.value = false;
+      tags.value = "";
       error.value = "";
       authMethod.value = "none";
       selectedKeyId.value = "";
@@ -130,6 +132,7 @@ async function submit() {
       username: username.value.trim(),
       identityId: finalIdentityId,
       favorite: favorite.value,
+      tags: tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
     });
     emit("update:open", false);
   } catch (e) {
@@ -258,6 +261,12 @@ async function submit() {
             <input v-model="favorite" type="checkbox" class="accent-primary" />
             Add to favorites
           </label>
+
+          <div>
+            <label class="mb-1 block text-sm font-medium">Tags</label>
+            <Input v-model="tags" placeholder="production, database, client-a" />
+            <p class="mt-1 text-xs text-muted-foreground">Separate tags with commas.</p>
+          </div>
 
           <div class="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" @click="emit('update:open', false)">Cancel</Button>
