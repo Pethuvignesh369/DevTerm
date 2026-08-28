@@ -33,8 +33,8 @@ func newEncryptedFileVault() (*encryptedFileVault, error) {
 		return nil, fmt.Errorf("creating vault directory: %w", err)
 	}
 
-	// For now, generate a random key and persist it alongside the vault.
-	// TODO: Use DPAPI on Windows, or Argon2id master passphrase prompt.
+	// The key is protected with the operating system's data-protection
+	// facility when one is available (DPAPI on Windows).
 	keyPath := vaultPath + ".key"
 	key, err := loadOrCreateKey(keyPath)
 	if err != nil {
@@ -137,17 +137,46 @@ func (v *encryptedFileVault) load() error {
 }
 
 func loadOrCreateKey(keyPath string) ([]byte, error) {
-	if data, err := os.ReadFile(keyPath); err == nil && len(data) == 32 {
-		return data, nil
+	data, err := os.ReadFile(keyPath)
+	if err == nil {
+		key, unprotectErr := unprotectVaultKey(data)
+		if unprotectErr == nil && len(key) == 32 {
+			return key, nil
+		}
+
+		// Versions before DPAPI stored the key as plaintext. Keep existing
+		// installations working and upgrade their key as soon as it is opened.
+		if vaultKeyNeedsProtection() && len(data) == 32 {
+			if err := writeProtectedKey(keyPath, data); err != nil {
+				return nil, fmt.Errorf("upgrading legacy vault key: %w", err)
+			}
+			return data, nil
+		}
+		if unprotectErr != nil {
+			return nil, fmt.Errorf("unprotecting vault key: %w", unprotectErr)
+		}
+		return nil, fmt.Errorf("invalid vault key length: got %d bytes", len(key))
 	}
+	if !os.IsNotExist(err) {
+		return nil, err
+	}
+
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(keyPath, key, 0600); err != nil {
+	if err := writeProtectedKey(keyPath, key); err != nil {
 		return nil, err
 	}
 	return key, nil
+}
+
+func writeProtectedKey(keyPath string, key []byte) error {
+	protected, err := protectVaultKey(key)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(keyPath, protected, 0600)
 }
 
 func defaultVaultPath() (string, error) {
