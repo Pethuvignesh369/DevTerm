@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useSnippetsStore } from "@/stores/snippets";
+import { useSnippetsStore, type Snippet } from "@/stores/snippets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 const snippetsStore = useSnippetsStore();
 const searchQuery = ref("");
-const showCreate = ref(false);
+const showEditor = ref(false);
+const editingSnippet = ref<Snippet | null>(null);
 const newTitle = ref("");
 const newCommand = ref("");
 const newTags = ref("");
@@ -31,14 +32,42 @@ async function handleCreate() {
   }
   createError.value = "";
   try {
-    await snippetsStore.createSnippet(newTitle.value.trim(), newCommand.value.trim(), newTags.value.split(",").map((tag) => tag.trim()).filter(Boolean));
-    showCreate.value = false;
-    newTitle.value = "";
-    newCommand.value = "";
-    newTags.value = "";
+    const tags = newTags.value.split(",").map((tag) => tag.trim()).filter(Boolean);
+    if (editingSnippet.value) {
+      await snippetsStore.updateSnippet(editingSnippet.value.id, newTitle.value.trim(), newCommand.value.trim(), tags);
+    } else {
+      await snippetsStore.createSnippet(newTitle.value.trim(), newCommand.value.trim(), tags);
+    }
+    closeEditor();
   } catch (e) {
     createError.value = e instanceof Error ? e.message : String(e);
   }
+}
+
+function openCreate() {
+  editingSnippet.value = null;
+  newTitle.value = "";
+  newCommand.value = "";
+  newTags.value = "";
+  createError.value = "";
+  showEditor.value = true;
+}
+
+function openEdit(snippet: Snippet) {
+  editingSnippet.value = snippet;
+  newTitle.value = snippet.title;
+  newCommand.value = snippet.command;
+  newTags.value = snippet.tags.join(", ");
+  createError.value = "";
+  showEditor.value = true;
+}
+
+function closeEditor() {
+  showEditor.value = false;
+  editingSnippet.value = null;
+  newTitle.value = "";
+  newCommand.value = "";
+  newTags.value = "";
 }
 
 async function handleDelete(id: string, title: string) {
@@ -60,13 +89,13 @@ const emit = defineEmits<{
         <h2 class="text-2xl font-bold">Snippets</h2>
         <p class="text-sm text-muted-foreground">Save and manage frequently used commands.</p>
       </div>
-      <Button @click="showCreate = !showCreate">
-        {{ showCreate ? "Cancel" : "New Snippet" }}
+      <Button @click="showEditor ? closeEditor() : openCreate()">
+        {{ showEditor ? "Cancel" : "New Snippet" }}
       </Button>
     </div>
 
     <!-- Create form -->
-    <div v-if="showCreate" class="border-b border-border px-6 py-4">
+    <div v-if="showEditor" class="border-b border-border px-6 py-4">
       <div v-if="createError" class="mb-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
         {{ createError }}
       </div>
@@ -79,7 +108,10 @@ const emit = defineEmits<{
           rows="3"
         />
         <Input v-model="newTags" placeholder="Tags: deployment, diagnostics" />
-        <Button size="sm" @click="handleCreate">Save Snippet</Button>
+        <div class="flex gap-2">
+          <Button size="sm" @click="handleCreate">{{ editingSnippet ? "Save Changes" : "Save Snippet" }}</Button>
+          <Button size="sm" variant="outline" @click="closeEditor">Cancel</Button>
+        </div>
       </div>
     </div>
 
@@ -118,6 +150,7 @@ const emit = defineEmits<{
             </div>
             <div class="ml-4 flex flex-col gap-1">
               <Button size="sm" variant="outline" @click="emit('run', snippet.command)">Run</Button>
+              <Button size="sm" variant="ghost" @click="openEdit(snippet)">Edit</Button>
               <Button size="sm" variant="ghost" class="text-destructive" @click="handleDelete(snippet.id, snippet.title)">
                 Delete
               </Button>
