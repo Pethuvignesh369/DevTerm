@@ -4,19 +4,22 @@ import { useKeysStore } from "@/stores/keys";
 import { Button } from "@/components/ui/button";
 import KeyGenerateDialog from "./KeyGenerateDialog.vue";
 import KeyImportDialog from "./KeyImportDialog.vue";
+import ConfirmDialog from "@/components/ui/ConfirmDialog.vue";
 
 const keysStore = useKeysStore();
 const showGenerate = ref(false);
 const showImport = ref(false);
+const pendingDelete = ref<{ id: string; name: string } | null>(null);
 
 onMounted(() => {
   keysStore.fetchKeys();
 });
 
-async function handleDelete(id: string, name: string) {
-  if (confirm(`Delete key "${name}"? This cannot be undone.`)) {
-    await keysStore.deleteKey(id);
-  }
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  const { id } = pendingDelete.value;
+  pendingDelete.value = null;
+  await keysStore.deleteKey(id);
 }
 </script>
 
@@ -77,7 +80,7 @@ async function handleDelete(id: string, name: string) {
             <p class="mt-1 font-mono text-xs text-muted-foreground">{{ key.fingerprint }}</p>
             <p class="mt-1 text-xs text-muted-foreground">Created {{ key.createdAt }}</p>
           </div>
-          <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="handleDelete(key.id, key.name)">
+          <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="pendingDelete = { id: key.id, name: key.name }">
             Delete
           </Button>
         </div>
@@ -87,5 +90,14 @@ async function handleDelete(id: string, name: string) {
     <!-- Dialogs -->
     <KeyGenerateDialog v-model:open="showGenerate" />
     <KeyImportDialog v-model:open="showImport" />
+    <ConfirmDialog
+      :open="!!pendingDelete"
+      title="Delete SSH key?"
+      :message="pendingDelete ? `“${pendingDelete.name}” will be permanently removed from DevTerm.` : ''"
+      confirm-text="Delete"
+      variant="destructive"
+      @update:open="(open) => { if (!open) pendingDelete = null; }"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>

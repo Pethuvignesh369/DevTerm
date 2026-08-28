@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { useSnippetsStore, type Snippet } from "@/stores/snippets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import ConfirmDialog from "@/components/ui/ConfirmDialog.vue";
 
 const snippetsStore = useSnippetsStore();
 const searchQuery = ref("");
@@ -12,6 +13,7 @@ const newTitle = ref("");
 const newCommand = ref("");
 const newTags = ref("");
 const createError = ref("");
+const pendingDelete = ref<{ id: string; title: string } | null>(null);
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 onMounted(() => {
@@ -70,10 +72,11 @@ function closeEditor() {
   newTags.value = "";
 }
 
-async function handleDelete(id: string, title: string) {
-  if (confirm(`Delete snippet "${title}"?`)) {
-    await snippetsStore.deleteSnippet(id);
-  }
+async function confirmDelete() {
+  if (!pendingDelete.value) return;
+  const { id } = pendingDelete.value;
+  pendingDelete.value = null;
+  await snippetsStore.deleteSnippet(id);
 }
 
 const emit = defineEmits<{
@@ -151,7 +154,7 @@ const emit = defineEmits<{
             <div class="ml-4 flex flex-col gap-1">
               <Button size="sm" variant="outline" @click="emit('run', snippet.command)">Run</Button>
               <Button size="sm" variant="ghost" @click="openEdit(snippet)">Edit</Button>
-              <Button size="sm" variant="ghost" class="text-destructive" @click="handleDelete(snippet.id, snippet.title)">
+              <Button size="sm" variant="ghost" class="text-destructive" @click="pendingDelete = { id: snippet.id, title: snippet.title }">
                 Delete
               </Button>
             </div>
@@ -159,5 +162,14 @@ const emit = defineEmits<{
         </div>
       </div>
     </div>
+    <ConfirmDialog
+      :open="!!pendingDelete"
+      title="Delete snippet?"
+      :message="pendingDelete ? `“${pendingDelete.title}” will be permanently removed.` : ''"
+      confirm-text="Delete"
+      variant="destructive"
+      @update:open="(open) => { if (!open) pendingDelete = null; }"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>
