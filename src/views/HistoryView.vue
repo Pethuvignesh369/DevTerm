@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { useSessionsStore } from "@/stores/sessions";
+import { useNotificationsStore } from "@/stores/notifications";
 import { rpcClient } from "@/lib/rpc-client";
 import HistoryPanel from "@/components/history/HistoryPanel.vue";
 
 const sessionsStore = useSessionsStore();
+const notificationsStore = useNotificationsStore();
 
 function insertCommand(command: string) {
   const session = sessionsStore.activeSession;
   if (!session || session.status !== "connected") {
-    alert("No active terminal session. Connect to a host first.");
+    notificationsStore.add({
+      type: "warning",
+      title: "No active terminal",
+      message: "Connect to a host before inserting a command.",
+    });
     return;
   }
   // Insert the command (without newline so user can edit before pressing enter)

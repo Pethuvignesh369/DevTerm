@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { useHostsStore } from "@/stores/hosts";
 import { useSessionsStore } from "@/stores/sessions";
 import { useRecentsStore } from "@/stores/recents";
+import { useNotificationsStore } from "@/stores/notifications";
 import { rpcClient } from "@/lib/rpc-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog.vue";
 const hostsStore = useHostsStore();
 const sessionsStore = useSessionsStore();
 const recentsStore = useRecentsStore();
+const notificationsStore = useNotificationsStore();
 const router = useRouter();
 const showForm = ref(false);
 const showFavorites = ref(false);
@@ -113,9 +115,17 @@ async function importSSHConfig() {
     const result = await rpcClient.call<object, { imported: number; total: number }>("hosts.importSSHConfig", {});
     if (result.imported > 0) {
       await hostsStore.fetchHosts();
-      alert(`Imported ${result.imported} of ${result.total} hosts from ~/.ssh/config`);
+      notificationsStore.add({
+        type: "success",
+        title: "SSH config imported",
+        message: `Imported ${result.imported} of ${result.total} connections.`,
+      });
     } else {
-      alert(`No new hosts to import (${result.total} entries found, all already exist)`);
+      notificationsStore.add({
+        type: "info",
+        title: "No new connections",
+        message: `${result.total} SSH config entries were found; all are already saved.`,
+      });
     }
   } catch (e) {
     hostsStore.error = e instanceof Error ? e.message : String(e);
