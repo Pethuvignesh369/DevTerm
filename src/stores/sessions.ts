@@ -25,6 +25,13 @@ export interface Tab {
   title: string;
 }
 
+export interface QuickConnectParams {
+  hostname: string;
+  port: number;
+  username: string;
+  password: string;
+}
+
 export const useSessionsStore = defineStore("sessions", () => {
   // Use a plain reactive object instead of Map for Vue reactivity
   const sessions = ref<Record<string, Session>>({});
@@ -114,6 +121,35 @@ export const useSessionsStore = defineStore("sessions", () => {
     }
   }
 
+  async function connectQuick(params: QuickConnectParams): Promise<boolean> {
+    const hostName = `${params.username}@${params.hostname}:${params.port}`;
+    const tempId = crypto.randomUUID();
+    const session: Session = { id: tempId, hostId: `quick-${tempId}`, hostName, status: "connecting" };
+    sessions.value[tempId] = session;
+    const tab: Tab = { id: crypto.randomUUID(), sessionId: tempId, title: hostName };
+    tabs.value.push(tab);
+    activeTabId.value = tab.id;
+
+    try {
+      const result = await rpcClient.call<QuickConnectParams, { sessionId: string; hostId: string }>("ssh.connect", params);
+      delete sessions.value[tempId];
+      session.id = result.sessionId;
+      session.hostId = result.hostId;
+      session.status = "connected";
+      sessions.value[result.sessionId] = session;
+      tab.sessionId = result.sessionId;
+      useNotificationsStore().add({ type: "success", title: "Quick connection established", message: `Connected to ${hostName}` });
+      playConnectSound();
+      return true;
+    } catch (e) {
+      session.status = "error";
+      session.error = e instanceof Error ? e.message : String(e);
+      useNotificationsStore().add({ type: "error", title: "Quick connection failed", message: session.error });
+      playErrorSound();
+      return false;
+    }
+  }
+
   async function disconnect(sessionId: string) {
     try {
       await rpcClient.call("ssh.disconnect", { sessionId });
@@ -152,6 +188,7 @@ export const useSessionsStore = defineStore("sessions", () => {
     activeSession,
     splits,
     connect,
+    connectQuick,
     disconnect,
     closeTab,
     setActiveTab,

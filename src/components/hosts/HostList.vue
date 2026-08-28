@@ -84,27 +84,34 @@ const displayedHosts = computed(() => {
 
 // Quick connect (without saving host)
 const quickHost = ref("");
+const quickPassword = ref("");
 async function quickConnect() {
   if (!quickHost.value.trim()) return;
   const input = quickHost.value.trim();
-  let username = "root";
-  let hostname = input;
-
-  if (input.includes("@")) {
-    const parts = input.split("@");
-    username = parts[0];
-    hostname = parts[1];
+  const match = input.match(/^(?:([^@\s]+)@)?(\[[^\]]+\]|[^:\s]+)(?::(\d+))?$/);
+  if (!match) {
+    hostsStore.error = "Use user@hostname:port (IPv6 addresses must be in brackets).";
+    return;
   }
-  if (hostname.includes(":")) {
-    const parts = hostname.split(":");
-    hostname = parts[0];
+  const username = match[1] || "root";
+  const hostname = match[2].replace(/^\[|\]$/g, "");
+  const port = match[3] ? Number(match[3]) : 22;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    hostsStore.error = "Port must be between 1 and 65535.";
+    return;
+  }
+  if (!quickPassword.value) {
+    hostsStore.error = "Enter the SSH password for a one-off connection.";
+    return;
   }
 
-  // Connect directly without saving — use ssh.connect with inline params
   try {
-    await sessionsStore.connect("__quick__" + Date.now(), `${username}@${hostname}`);
-    router.push("/terminal");
-    quickHost.value = "";
+    const connected = await sessionsStore.connectQuick({ hostname, port, username, password: quickPassword.value });
+    if (connected) {
+      router.push("/terminal");
+      quickHost.value = "";
+      quickPassword.value = "";
+    }
   } catch (e) {
     hostsStore.error = e instanceof Error ? e.message : String(e);
   }
@@ -170,6 +177,13 @@ async function importSSHConfig() {
           @keydown.enter="quickConnect"
         />
       </div>
+      <input
+        v-model="quickPassword"
+        type="password"
+        class="w-44 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-smooth"
+        placeholder="SSH password"
+        @keydown.enter="quickConnect"
+      />
       <Button v-if="quickHost" size="sm" @click="quickConnect">Connect</Button>
     </div>
 

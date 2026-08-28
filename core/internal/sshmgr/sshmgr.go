@@ -80,24 +80,43 @@ func (m *Manager) GetClient(sessionID string) (*ssh.Client, error) {
 
 func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 	hostID, _ := params["hostId"].(string)
-	if hostID == "" {
-		return nil, fmt.Errorf("hostId is required")
-	}
-
-	host, err := m.hostMgr.GetHost(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("loading host: %w", err)
+	isQuick := hostID == ""
+	var hostname, username string
+	port := 22
+	password, _ := params["password"].(string)
+	var identityID *string
+	if isQuick {
+		hostname, _ = params["hostname"].(string)
+		username, _ = params["username"].(string)
+		if value, ok := params["port"].(float64); ok {
+			port = int(value)
+		}
+		if hostname == "" || username == "" || password == "" {
+			return nil, fmt.Errorf("hostname, username, and password are required for quick connect")
+		}
+		if port < 1 || port > 65535 {
+			return nil, fmt.Errorf("port must be between 1 and 65535")
+		}
+		hostID = "quick-" + uuid.New().String()
+	} else {
+		host, err := m.hostMgr.GetHost(hostID)
+		if err != nil {
+			return nil, fmt.Errorf("loading host: %w", err)
+		}
+		hostname, username, port, identityID = host.Hostname, host.Username, host.Port, host.IdentityID
 	}
 
 	// Build SSH config
 	config := &ssh.ClientConfig{
-		User:            host.Username,
+		User:            username,
 		HostKeyCallback: m.knownHosts.HostKeyCallback(),
 	}
 
 	// Resolve auth method from identity
-	if host.IdentityID != nil {
-		identity, err := m.hostMgr.GetIdentity(*host.IdentityID)
+	if isQuick {
+		config.Auth = append(config.Auth, ssh.Password(password))
+	} else if identityID != nil {
+		identity, err := m.hostMgr.GetIdentity(*identityID)
 		if err == nil {
 			switch identity.AuthType {
 			case "password":
@@ -149,7 +168,7 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 	}
 
 	// Connect with a bounded TCP dial. SSH's Dial does not accept a timeout.
-	addr := net.JoinHostPort(host.Hostname, strconv.Itoa(host.Port))
+	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
 	timeout := 30 * time.Second
 	var timeoutValue string
 	if err := m.db.QueryRow(`SELECT value FROM settings WHERE key = 'connectionTimeout'`).Scan(&timeoutValue); err == nil {
@@ -232,7 +251,9 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 	m.mu.Unlock()
 
 	// Record session in DB
-	m.db.Exec(`INSERT INTO sessions (id, host_id) VALUES (?, ?)`, sessionID, hostID)
+	if !isQuick {
+		m.db.Exec(`INSERT INTO sessions (id, host_id) VALUES (?, ?)`, sessionID, hostID)
+	}
 
 	// Start reading stdout and pushing notifications
 	notifier := rpc.GetNotifier()
@@ -254,7 +275,9 @@ func (m *Manager) connect(params map[string]interface{}) (interface{}, error) {
 		m.mu.Lock()
 		delete(m.sessions, sessionID)
 		m.mu.Unlock()
-		m.db.Exec(`UPDATE sessions SET ended_at = datetime('now') WHERE id = ?`, sessionID)
+		if !isQuick {
+			m.db.Exec(`UPDATE sessions SET ended_at = datetime('now') WHERE id = ?`, sessionID)
+		}
 		if notifier != nil {
 			notifier.Notify("ssh.status", map[string]interface{}{
 				"sessionId": sessionID,
