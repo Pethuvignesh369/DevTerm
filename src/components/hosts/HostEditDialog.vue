@@ -12,6 +12,7 @@ const name = ref("");
 const hostname = ref("");
 const port = ref(22);
 const username = ref("");
+const groupId = ref<number | null>(null);
 const tags = ref("");
 const submitting = ref(false);
 const error = ref("");
@@ -24,6 +25,7 @@ watch(
       hostname.value = props.host.hostname;
       port.value = props.host.port;
       username.value = props.host.username;
+      groupId.value = props.host.groupId;
       tags.value = props.host.tags.join(", ");
       error.value = "";
     }
@@ -40,6 +42,7 @@ async function submit() {
       hostname: hostname.value.trim(),
       port: port.value,
       username: username.value.trim(),
+      groupId: groupId.value,
       tags: tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
     });
     emit("update:open", false);
@@ -78,6 +81,13 @@ async function submit() {
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Username</label>
             <Input v-model="username" />
+          </div>
+          <div>
+            <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Group</label>
+            <select v-model="groupId" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option :value="null">No group</option>
+              <option v-for="group in hostsStore.groups" :key="group.id" :value="group.id">{{ group.name }}</option>
+            </select>
           </div>
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted-foreground">Tags</label>

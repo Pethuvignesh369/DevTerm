@@ -139,6 +139,11 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 	}
 	identityID, _ := params["identityId"].(string)
 	tags := tagNames(params["tags"])
+	var groupID *int
+	if value, ok := params["groupId"].(float64); ok {
+		id := int(value)
+		groupID = &id
+	}
 	favorite := false
 	if f, ok := params["favorite"].(bool); ok {
 		favorite = f
@@ -155,8 +160,8 @@ func (m *Manager) create(params map[string]interface{}) (interface{}, error) {
 	}
 	defer tx.Rollback()
 	_, err = tx.Exec(
-		`INSERT INTO hosts (id, name, hostname, port, username, identity_id, favorite) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		id, name, hostname, port, username, identityIDPtr, favorite,
+		`INSERT INTO hosts (id, name, hostname, port, username, identity_id, group_id, favorite) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, name, hostname, port, username, identityIDPtr, groupID, favorite,
 	)
 	if err != nil {
 		return nil, err
@@ -195,8 +200,16 @@ func (m *Manager) update(params map[string]interface{}) (interface{}, error) {
 		identityID = value
 	}
 	var groupID interface{}
-	if value, ok := params["groupId"].(float64); ok {
-		groupID = int(value)
+	groupProvided := false
+	if value, exists := params["groupId"]; exists {
+		groupProvided = true
+		if value != nil {
+			groupValue, ok := value.(float64)
+			if !ok {
+				return nil, fmt.Errorf("groupId must be a number or null")
+			}
+			groupID = int(groupValue)
+		}
 	}
 	tags, tagsProvided := params["tags"]
 
@@ -210,8 +223,8 @@ func (m *Manager) update(params map[string]interface{}) (interface{}, error) {
 		 name = COALESCE(NULLIF(?, ''), name), hostname = COALESCE(NULLIF(?, ''), hostname),
 		 username = COALESCE(NULLIF(?, ''), username), port = CASE WHEN ? > 0 THEN ? ELSE port END,
 		 favorite = COALESCE(?, favorite), identity_id = COALESCE(NULLIF(?, ''), identity_id),
-		 group_id = COALESCE(?, group_id), updated_at = datetime('now') WHERE id = ?`,
-		name, hostname, username, port, port, favorite, identityID, groupID, id,
+		 group_id = CASE WHEN ? THEN ? ELSE group_id END, updated_at = datetime('now') WHERE id = ?`,
+		name, hostname, username, port, port, favorite, identityID, groupProvided, groupID, id,
 	)
 	if err != nil {
 		return nil, err

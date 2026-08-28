@@ -17,6 +17,8 @@ const hostname = ref("");
 const port = ref(22);
 const username = ref("root");
 const identityId = ref("");
+const groupId = ref<number | null>(null);
+const newGroupName = ref("");
 const favorite = ref(false);
 const tags = ref("");
 const submitting = ref(false);
@@ -39,6 +41,8 @@ watch(
       port.value = 22;
       username.value = "root";
       identityId.value = "";
+      groupId.value = null;
+      newGroupName.value = "";
       favorite.value = false;
       tags.value = "";
       error.value = "";
@@ -50,6 +54,7 @@ watch(
       pemKeyName.value = "";
       keysStore.fetchKeys();
       hostsStore.fetchIdentities();
+      hostsStore.fetchGroups();
     }
   }
 );
@@ -64,6 +69,19 @@ function handlePemFileSelect(event: Event) {
     pemFile.value = reader.result as string;
   };
   reader.readAsText(file);
+}
+
+async function createGroup() {
+  const name = newGroupName.value.trim();
+  if (!name) return;
+  try {
+    const result = await rpcClient.call<{ name: string }, { id: number }>("groups.create", { name });
+    await hostsStore.fetchGroups();
+    groupId.value = result.id;
+    newGroupName.value = "";
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e);
+  }
 }
 
 async function submit() {
@@ -131,6 +149,7 @@ async function submit() {
       port: port.value,
       username: username.value.trim(),
       identityId: finalIdentityId,
+      groupId: groupId.value,
       favorite: favorite.value,
       tags: tags.value.split(",").map((tag) => tag.trim()).filter(Boolean),
     });
@@ -175,6 +194,18 @@ async function submit() {
           <div>
             <label class="mb-1 block text-sm font-medium">Username</label>
             <Input v-model="username" placeholder="root" />
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-sm font-medium">Group</label>
+            <select v-model="groupId" class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option :value="null">No group</option>
+              <option v-for="group in hostsStore.groups" :key="group.id" :value="group.id">{{ group.name }}</option>
+            </select>
+            <div class="flex gap-2">
+              <Input v-model="newGroupName" placeholder="New group name" @keydown.enter.prevent="createGroup" />
+              <Button type="button" variant="outline" size="sm" :disabled="!newGroupName.trim()" @click="createGroup">Create</Button>
+            </div>
           </div>
 
           <!-- Authentication Method -->

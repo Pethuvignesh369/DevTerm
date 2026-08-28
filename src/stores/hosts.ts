@@ -37,7 +37,7 @@ export interface CreateHostParams {
   port: number;
   username: string;
   identityId?: string;
-  groupId?: number;
+  groupId?: number | null;
   favorite?: boolean;
   tags?: string[];
 }
